@@ -1,0 +1,11 @@
+# Ignore all log files
+*.log
+
+# Ignore specific directories
+Datasets/DeepShip
+tb_logs/
+pretrained_models/
+
+# Ignore specific large files
+
+

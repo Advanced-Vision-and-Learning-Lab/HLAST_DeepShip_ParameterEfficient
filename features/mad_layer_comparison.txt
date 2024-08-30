@@ -1,0 +1,3 @@
+Linear Probing MAD compared to Full Fine-Tune: 3.4085
+Histogram MAD compared to Full Fine-Tune: 4.4690
+Adapters MAD compared to Full Fine-Tune: 2.8861
