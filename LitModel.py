@@ -22,26 +22,21 @@ import torchmetrics
 
 class LitModel(L.LightningModule):
 
-    def __init__(self, Params, model_name, num_classes, num_feature_maps, feat_map_size, numBins, Dataset):
+    def __init__(self, Params, model_name, num_classes, numBins, Dataset):
         super().__init__()
 
         self.learning_rate = Params['lr']
 
 
         self.model_ft, self.feature_extraction_layer = initialize_model(model_name, num_classes,
-                                                                        Params['in_channels'][model_name],
-                                                                        num_feature_maps,numBins,
-                                                                        Params['sample_rate'],
+                                                                        numBins,Params['sample_rate'],
+                                                                        spec_norm=Params['spec_norm'],
                                                                         t_mode=Params['train_mode'],
                                                                         histogram=Params['histogram'],
                                                                         h_shared=Params['histograms_shared'],
                                                                         a_shared=Params['adapters_shared'],
                                                                         parallel=Params['parallel'],
                                                                         use_pretrained=Params['use_pretrained'],
-                                                                        add_bn=Params['add_bn'],
-                                                                        scale=Params['scale'],
-                                                                        feat_map_size=feat_map_size,
-                                                                        TDNN_feats=(Params['TDNN_feats'][Dataset]),
                                                                         input_feature=Params['feature'],
                                                                         adapter_location=Params['adapter_location'],
                                                                         adapter_mode=Params['adapter_mode'],

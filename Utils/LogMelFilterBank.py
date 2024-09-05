@@ -3,6 +3,7 @@ import torch.nn as nn
 from torchlibrosa.stft import Spectrogram, LogmelFilterBank
 from torchlibrosa.augmentation import SpecAugmentation
 #from Utils.pytorch_utils import Mixup, do_mixup
+import pdb
 
 class MelSpectrogramExtractor(nn.Module): 
     def __init__(self, sample_rate=16000, n_fft=512, win_length=512, hop_length=160, n_mels=64, fmin=50, fmax=8000):
@@ -25,17 +26,17 @@ class MelSpectrogramExtractor(nn.Module):
         self.logmel_extractor = LogmelFilterBank(sr=sample_rate, n_fft=win_length, 
             n_mels=n_mels, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db, freeze_parameters=True)
         
-        
+        t_n = n_mels
         # Calculate scaled time_drop_width
         scale_factor = sample_rate / 16000.0
-        time_drop_width = int(64 * scale_factor)
+        time_drop_width = int(t_n * scale_factor)
         
         # Spec augmenter
         self.spec_augmenter = SpecAugmentation(time_drop_width=time_drop_width, time_stripes_num=2, 
             freq_drop_width=8, freq_stripes_num=2)
 
         
-        self.bn0 = nn.BatchNorm2d(64)
+        self.bn0 = nn.BatchNorm2d(t_n)
 
     def forward(self, waveform):
         
@@ -43,14 +44,16 @@ class MelSpectrogramExtractor(nn.Module):
         spectrogram = self.spectrogram_extractor(waveform)
         log_mel_spectrogram = self.logmel_extractor(spectrogram)
         
-        log_mel_spectrogram = log_mel_spectrogram.transpose(1, 3)
-        log_mel_spectrogram = self.bn0(log_mel_spectrogram)
-        log_mel_spectrogram = log_mel_spectrogram.transpose(1, 3)
+
+        # log_mel_spectrogram = log_mel_spectrogram.transpose(1, 3)
+        # log_mel_spectrogram = self.bn0(log_mel_spectrogram)
+        # log_mel_spectrogram = log_mel_spectrogram.transpose(1, 3)
         
         
-        if self.training:
-            log_mel_spectrogram = self.spec_augmenter(log_mel_spectrogram)
+        # if self.training:
+        #     log_mel_spectrogram = self.spec_augmenter(log_mel_spectrogram)
             
         log_mel_spectrogram = log_mel_spectrogram.squeeze(1).transpose(1, 2)
+
         return log_mel_spectrogram
 

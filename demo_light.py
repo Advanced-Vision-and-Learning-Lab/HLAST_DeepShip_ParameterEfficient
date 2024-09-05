@@ -50,11 +50,7 @@ def main(Params):
 
     # Number of bins and input convolution feature maps after channel-wise pooling
     numBins = Params['numBins']
-    num_feature_maps = Params['out_channels'][model_name]
 
-    # Local area of feature map after histogram layer
-    feat_map_size = Params['feat_map_size']
-    
     h_mode = Params['histogram']
     h_shared = Params['histograms_shared']
     a_shared = Params['adapters_shared']
@@ -75,7 +71,7 @@ def main(Params):
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
     all_test_accs = []
-    for run_number in range(0, numRuns-2):
+    for run_number in range(0, numRuns):
         
         if run_number != 0:
             seed_everything(run_number+1, workers=True)
@@ -99,8 +95,7 @@ def main(Params):
         )
 
 
-        model_AST = LitModel(Params, model_name, num_classes, num_feature_maps,
-                             feat_map_size, numBins, Dataset)
+        model_AST = LitModel(Params, model_name, num_classes, numBins, Dataset)
 
         logger = TensorBoardLogger(
             save_dir = (f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
@@ -169,7 +164,7 @@ def parse_args():
         description='Run histogram experiments')
     parser.add_argument('--model', type=str, default='AST',
                         help='Select baseline model architecture')
-    parser.add_argument('--histogram', default=True, action=argparse.BooleanOptionalAction,
+    parser.add_argument('--histogram', default=False, action=argparse.BooleanOptionalAction,
                         help='Flag to use --no-histogram or --histogram')
     parser.add_argument('--histograms_shared', default=True, action=argparse.BooleanOptionalAction,
                         help='Flag to use histogram shared')
@@ -177,9 +172,9 @@ def parse_args():
                         help='Flag to use adapter shared')
     parser.add_argument('--data_selection', type=int, default=0,
                         help='Dataset selection: See Demo_Parameters for full list of datasets')
-    parser.add_argument('-numBins', type=int, default=128,
+    parser.add_argument('-numBins', type=int, default=16,
                         help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
-    parser.add_argument('--train_mode', type=str, default='linear_probing',
+    parser.add_argument('--train_mode', type=str, default='full_fine_tune',
                         help='full_fine_tune or linear_probing or adapters')
     parser.add_argument('--use_pretrained', default=True, action=argparse.BooleanOptionalAction,
                         help='Flag to use pretrained model or train from scratch (default: True)')
@@ -189,7 +184,7 @@ def parse_args():
                         help='input batch size for validation (default: 512)')
     parser.add_argument('--test_batch_size', type=int, default=128,
                         help='input batch size for testing (default: 256)')
-    parser.add_argument('--num_epochs', type=int, default=1,
+    parser.add_argument('--num_epochs', type=int, default=100,
                         help='Number of epochs to train each model for (default: 50)')
     parser.add_argument('--lr', type=float, default=1e-5,
                         help='learning rate (default: 0.001)')
@@ -199,17 +194,19 @@ def parse_args():
                         help='Audio feature for extraction')
     parser.add_argument('--optimizer', type=str, default='Adam',
                         help='Select optimizer')
-    parser.add_argument('--patience', type=int, default=5,
+    parser.add_argument('--patience', type=int, default=25,
                         help='Number of epochs to train each model for (default: 50)')
+    parser.add_argument('--spec_norm', type=bool, default=False,
+                        help='Normalize spectrograms')
     parser.add_argument('--sample_rate', type=int, default=16000,
                         help='Dataset Sample Rate'),
     parser.add_argument('--adapter_location', type=str, default='None',
                         help='Location for the adapter layers (default: ffn)')
     parser.add_argument('--adapter_mode', type=str, default='None',
                         help='Mode for the adapter layers (default: parallel)')
-    parser.add_argument('--histogram_location', type=str, default='mhsa',
+    parser.add_argument('--histogram_location', type=str, default='None',
                         help='Location for the histogram layers (default: ffn)')
-    parser.add_argument('--histogram_mode', type=str, default='parallel',
+    parser.add_argument('--histogram_mode', type=str, default='None',
                         help='Mode for the histogram layers (default: parallel)')
     args = parser.parse_args()
     return args

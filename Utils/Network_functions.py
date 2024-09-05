@@ -7,11 +7,10 @@ from __future__ import division
 from Utils.Feature_Extraction_Layer import Feature_Extraction_Layer
 from src.models import ASTModel
 
-def initialize_model(model_name, num_classes, in_channels, out_channels, numBins, sample_rate=16000,
+def initialize_model(model_name, num_classes, numBins, sample_rate=16000,
                      t_mode='full_fine_tune', histogram=True, h_shared=True, a_shared=True,
-                     parallel=True, use_pretrained=True, add_bn=True, scale=5,
-                     feat_map_size=4, TDNN_feats=1, input_feature='STFT', RGB=True,
-                     mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225],
+                     parallel=True, use_pretrained=True,
+                     input_feature='STFT', RGB=True,spec_norm=False,
                      adapter_location='ffn', adapter_mode='parallel', 
                      histogram_location='ffn', histogram_mode='parallel'):
     
@@ -19,13 +18,13 @@ def initialize_model(model_name, num_classes, in_channels, out_channels, numBins
         RGB = False    
 
     # Initialize feature layer
-    feature_layer = Feature_Extraction_Layer(input_feature=input_feature,sample_rate=sample_rate, RGB=RGB)
+    feature_layer = Feature_Extraction_Layer(input_feature=input_feature,sample_rate=sample_rate, RGB=RGB, spec_norm=spec_norm)
     ft_dims = feature_layer.output_dims
 
     model_ft = None
     inpf = ft_dims[1]
     inpt = ft_dims[2]
-
+    print(f'feature shape f by t: {inpf} by {inpt}\n')
     Use_A = (t_mode == 'adapters')
 
     h_mode = histogram
