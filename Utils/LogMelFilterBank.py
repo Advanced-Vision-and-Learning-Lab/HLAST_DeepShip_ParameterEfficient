@@ -45,9 +45,9 @@ class MelSpectrogramExtractor(nn.Module):
         log_mel_spectrogram = self.logmel_extractor(spectrogram)
         
 
-        # log_mel_spectrogram = log_mel_spectrogram.transpose(1, 3)
-        # log_mel_spectrogram = self.bn0(log_mel_spectrogram)
-        # log_mel_spectrogram = log_mel_spectrogram.transpose(1, 3)
+        log_mel_spectrogram = log_mel_spectrogram.transpose(1, 3)
+        log_mel_spectrogram = self.bn0(log_mel_spectrogram)
+        log_mel_spectrogram = log_mel_spectrogram.transpose(1, 3)
         
         
         # if self.training:

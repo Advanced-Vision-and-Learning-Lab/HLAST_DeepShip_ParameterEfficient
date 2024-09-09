@@ -41,7 +41,19 @@ n_mels = 48
 s_spectrogram_transform = Spectrogram(n_fft=n_fft, hop_length=hop_length_mel,
                                     win_length=n_fft, window='hann', center=True, pad_mode='reflect', freeze_parameters=True)
 # Log Mel Filter Bank module
-s_mel_transform = LogmelFilterBank(sr=sr, n_fft=n_fft, n_mels=n_mels, fmin=0.0, fmax=sr // 2, freeze_parameters=True)
+s_mel_transform = LogmelFilterBank(sr=sr, n_fft=n_fft, n_mels=n_mels, fmin=10.0, fmax=sr // 2, freeze_parameters=True)
+
+
+
+n_fft = 2048
+hop_length_mel = 2000  
+n_mels = 32
+# Spectrogram module for Log Mel Filter Bank
+vs_spectrogram_transform = Spectrogram(n_fft=n_fft, hop_length=hop_length_mel,
+                                    win_length=n_fft, window='hann', center=True, pad_mode='reflect', freeze_parameters=True)
+# Log Mel Filter Bank module
+vs_mel_transform = LogmelFilterBank(sr=sr, n_fft=n_fft, n_mels=n_mels, fmin=10.0, fmax=sr // 2, freeze_parameters=True)
+
 
 
 # Function to extract features
@@ -72,11 +84,20 @@ def extract_features(file_path):
     # Log Mel Filter Bank
     s_logmel_feature = s_mel_transform(s_spectrogram).numpy()
     
-    return stft_feature.squeeze(0), log_stft_feature.squeeze(0), logmel_feature.squeeze(0), s_logmel_feature.squeeze(0)
+    
+    
+    # Spectrogram for Log Mel Filter Bank
+    vs_spectrogram = vs_spectrogram_transform(y_tensor)
+    # Log Mel Filter Bank
+    vs_logmel_feature = vs_mel_transform(vs_spectrogram).numpy()
+    
+    
+    
+    return stft_feature.squeeze(0), log_stft_feature.squeeze(0), logmel_feature.squeeze(0), s_logmel_feature.squeeze(0),vs_logmel_feature.squeeze(0)
 
 
 # Iterate through dataset and save features
-features = {'STFT': [], 'log_STFT': [], 'LogMel': [], 's_LogMel': []}
+features = {'STFT': [], 'log_STFT': [], 'LogMel': [], 's_LogMel': [], 'vs_LogMel': []}
 
 for category in categories:
     category_dir = os.path.join(base_dir, category)
@@ -85,25 +106,30 @@ for category in categories:
         for file in os.listdir(recording_dir):
             if file.endswith('.wav'):
                 file_path = os.path.join(recording_dir, file)
-                stft_feature, log_stft_feature, logmel_feature, s_logmel_feature = extract_features(file_path)
+                stft_feature, log_stft_feature, logmel_feature, s_logmel_feature,vs_logmel_feature = extract_features(file_path)
                 features['STFT'].append(stft_feature)
                 features['log_STFT'].append(log_stft_feature)
                 features['LogMel'].append(logmel_feature)
                 features['s_LogMel'].append(s_logmel_feature)
-                
+                features['vs_LogMel'].append(vs_logmel_feature)
+
 
 # Save each feature set in a separate .npz file
 np.savez_compressed('tb_logs/stft_features.npz', stft_features=np.array(features['STFT']))
 np.savez_compressed('tb_logs/log_stft_features.npz', log_stft_features=np.array(features['log_STFT']))
 np.savez_compressed('tb_logs/logmel_features.npz', logmel_features=np.array(features['LogMel']))
 np.savez_compressed('tb_logs/s_logmel_features.npz', s_logmel_features=np.array(features['s_LogMel']))
+np.savez_compressed('tb_logs/vs_logmel_features.npz', vs_logmel_features=np.array(features['vs_LogMel']))
+
 
 
 stft_shape = np.array(features['STFT']).shape 
 log_stft_shape = np.array(features['log_STFT']).shape 
 logmel_shape = np.array(features['LogMel']).shape
 s_logmel_shape = np.array(features['s_LogMel']).shape
+vs_logmel_shape = np.array(features['vs_LogMel']).shape
 
-print(stft_shape,log_stft_shape,logmel_shape,s_logmel_shape)
+
+print(stft_shape,log_stft_shape,logmel_shape,s_logmel_shape,vs_logmel_shape)
 
 

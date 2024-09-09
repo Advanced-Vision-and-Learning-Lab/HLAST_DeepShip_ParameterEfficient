@@ -15,23 +15,17 @@ class Feature_Extraction_Layer(nn.Module):
         self.num_channels = 1
         
         self.spec_norm = spec_norm
-        self.dataset_mean = 48.26377
-        self.dataset_std = 11.56119
         self.input_feature = input_feature
         
         # Initialize logmelfbank
-        # Scale factors based on the ratio of the new sample rate to the original sample rate (16000)
-        scale_factor = sample_rate / 16000.0
-        
+
         n_fft = 1024
         win_length = 1024
         hop_length = 1000 
         n_mels = 48
         fmin = 10
         fmax = 8000
-
-        # fmin = max(1e-2, int(50 * scale_factor))
-        # fmax = min(int(8000 * scale_factor), sample_rate // 2)
+        
         
         self.LogMelFBank = MelSpectrogramExtractor(
             sample_rate=sample_rate, 
@@ -67,18 +61,8 @@ class Feature_Extraction_Layer(nn.Module):
        
         #Extract audio feature
         x = self.features[self.input_feature](x)
-        #pdb.set_trace()
-        
-        # Normalize the feature
-        #if self.spec_norm:
-        x = (x - self.dataset_mean) / (self.dataset_std) 
-        x *= 0.5  
-
 
         x = x.unsqueeze(1)
-        # Repeat channel dimension if needed (e.g., for CNNs)
-        #x = x.repeat(1, self.num_channels, 1, 1)  
-
 
         return x
 

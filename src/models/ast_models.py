@@ -12,7 +12,7 @@ import pdb
 from .RBFHistogramPooling import HistogramLayer
 
 class AdapterLayer(nn.Module):
-    def __init__(self, dim, reduction_factor=64):
+    def __init__(self, dim, reduction_factor=128):
         super(AdapterLayer, self).__init__()
         self.down_proj = nn.Linear(dim, dim // reduction_factor)
         self.up_proj = nn.Linear(dim // reduction_factor, dim)
@@ -147,7 +147,7 @@ class ASTModel(nn.Module):
             
             print(f"\nNumber of transformer blocks: {len(self.v.blocks)}")
             
-            self.reduction_factor = 64
+            self.reduction_factor = 128
             self.use_adapters = use_adapters
             self.adapter_mode = adapter_mode
             self.adapter_location = adapter_location
@@ -348,25 +348,12 @@ class ASTModel(nn.Module):
                     hist_features_flat = hist_features.reshape(B, -1)
                     hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
                     attn_out = attn_out + hist_features_flat 
-            #     elif self.histogram_mode == 'sequential':
-            #         attn_out = blk.attn(x)
-            #         hist_features = self.histogram_layers_mhsa[i](attn_out.permute(0, 2, 1)).permute(0, 2, 1)
-            #         hist_features_flat = hist_features.reshape(B, -1)
-            #         hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
-            #         attn_out = hist_features_flat
+
             else:
                 attn_out = blk.attn(x)
 
             x = attn_out + residual
             x = blk.drop_path(x)
-
-
-            # if self.use_histogram and (self.histogram_location in ['all', 'mhsa_ffn', 'mhsa_out', 'mhsa']):
-            #     if self.histogram_mode == 'parallel':
-            #         hist_features = self.histogram_layers_mhsa[i](x.permute(0, 2, 1)).permute(0, 2, 1)
-            #         hist_features_flat = hist_features.reshape(B, -1)
-            #         hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
-            #         x = x + hist_features_flat 
 
 
             # FFN sublayer
@@ -388,12 +375,6 @@ class ASTModel(nn.Module):
                     hist_features_flat = hist_features.reshape(B, -1)
                     hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
                     ffn_out = ffn_out + hist_features_flat
-            #     elif self.histogram_mode == 'sequential':
-            #         ffn_out = blk.mlp(x)
-            #         hist_features = self.histogram_layers_ffn[i](ffn_out.permute(0, 2, 1)).permute(0, 2, 1)
-            #         hist_features_flat = hist_features.reshape(B, -1)
-            #         hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
-            #         ffn_out = hist_features_flat
 
             else:
                 ffn_out = blk.mlp(x)
@@ -402,34 +383,13 @@ class ASTModel(nn.Module):
             x = blk.drop_path(x)
 
 
-            # if self.use_histogram and (self.histogram_location in ['all', 'mhsa_ffn', 'ffn_out', 'ffn']):
-            #     if self.histogram_mode == 'parallel':
-            #         hist_features = self.histogram_layers_ffn[i](x.permute(0, 2, 1)).permute(0, 2, 1)
-            #         hist_features_flat = hist_features.reshape(B, -1)
-            #         hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
-            #         x = x + hist_features_flat
-
-
-
-            # Output of each block 
-            # if self.use_adapters and self.adapter_location in ['all', 'mhsa_out', 'ffn_out', 'out']:
-            #     if self.adapter_mode == 'parallel':
-            #         x = x + self.adapters_out[i](x)
-            #     elif self.adapter_mode == 'sequential':
-            #         x = self.adapters_out[i](x)
-
             if self.use_histogram and self.histogram_location in ['all', 'mhsa_out', 'ffn_out', 'out']:
                 if self.histogram_mode == 'parallel':
                     hist_features = self.histogram_layers_out[i](x.permute(0, 2, 1)).permute(0, 2, 1)
                     hist_features_flat = hist_features.reshape(B, -1)
                     hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
                     x = x + hist_features_flat
-            #     elif self.histogram_mode == 'sequential':
-            #         hist_features = self.histogram_layers_out[i](x.permute(0, 2, 1)).permute(0, 2, 1)
-            #         hist_features_flat = hist_features.reshape(B, -1)
-            #         hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
-            #         x = hist_features_flat
-           
+
         x = self.v.norm(x)
         x = (x[:, 0] + x[:, 1]) / 2
         x = self.mlp_head(x)

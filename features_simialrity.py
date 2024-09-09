@@ -114,8 +114,35 @@ def save_cosine_similarity(cosine_similarities, model_names, filename):
             file.write(f"Layer {layer_index} - Cosine Similarities: [{sim_str}]\n")
             file.write("\n")
 
+from scipy.stats import shapiro
+def test_normality(features_dict, model_names):
+    """
+    Perform Shapiro-Wilk test for normality for each layer.
+    """
+    normality_results = {i: [] for i in range(12)}
+    
+    for model_name in model_names:
+        features = features_dict[model_name]
+        for layer_index in range(12):
+            # concatenate the features from all batches for the current layer
+            concat_features = torch.cat([f[layer_index].view(-1) for f in features], dim=0).cpu().numpy()
+            
+            # Shapiro-Wilk test
+            stat, p_value = shapiro(concat_features)
+            normality_results[layer_index].append(p_value)
+    
+    return normality_results
 
-
+def save_normality_results(normality_results, model_names, filename):
+    """
+    Save Shapiro-Wilk normality test results for each layer across models.
+    """
+    with open(filename, 'w') as file:
+        for layer_index, p_values in normality_results.items():
+            p_val_str = ', '.join([f"{model_names[i]}: {p_value:.6f}" for i, p_value in enumerate(p_values)])
+            file.write(f"Layer {layer_index} - Normality Test (p-values): [{p_val_str}]\n")
+            file.write("\n")
+            
 def main(Params):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -127,10 +154,6 @@ def main(Params):
 
     # Number of bins and input convolution feature maps after channel-wise pooling
     numBins = Params['numBins']
-    num_feature_maps = Params['out_channels'][model_name]
-
-    # Local area of feature map after histogram layer
-    feat_map_size = Params['feat_map_size']
     
     batch_size = Params['batch_size']
     batch_size = batch_size['train']
@@ -147,10 +170,10 @@ def main(Params):
 
     # Load models
     model_paths = {
-        'full_fine_tune': glob.glob(f"tb_logs/STFT_b64_16000_full_fine_tune_AdaptSharedFalse_None_None_HistFalseSharedFalse_16bins_None_None/Run_{run_number}/metrics/version_0/checkpoints/*.ckpt")[0],
-        'linear_probing': glob.glob(f"tb_logs/STFT_b64_16000_linear_probing_AdaptSharedFalse_None_None_HistFalseSharedFalse_16bins_None_None/Run_{run_number}/metrics/version_0/checkpoints/*.ckpt")[0],
-        'histogram': glob.glob(f"tb_logs/STFT_b64_16000_linear_probing_AdaptSharedFalse_None_None_HistTrueSharedTrue_16bins_all_parallel/Run_{run_number}/metrics/version_0/checkpoints/*.ckpt")[0],
-        'adapters': glob.glob(f"tb_logs/STFT_b64_16000_adapters_AdaptSharedTrue_mhsa_ffn_parallel_HistFalseSharedFalse_16bins_None_None/Run_{run_number}/metrics/version_0/checkpoints/*.ckpt")[0]
+        'full_fine_tune': glob.glob(f"tb_logs/LogMelFBank_b64_16000_full_fine_tune_AdaptSharedFalse_None_None_HistFalseSharedFalse_16bins_None_None/Run_{run_number}/metrics/version_0/checkpoints/*.ckpt")[0],
+        'linear_probing': glob.glob(f"tb_logs/LogMelFBank_b64_16000_linear_probing_AdaptSharedFalse_None_None_HistFalseSharedTrue_16bins_None_None/Run_{run_number}/metrics/version_0/checkpoints/*.ckpt")[0],
+        'histogram': glob.glob(f"tb_logs/LogMelFBank_b64_16000_linear_probing_AdaptSharedFalse_None_None_HistTrueSharedTrue_8bins_mhsa_parallel/Run_{run_number}/metrics/version_0/checkpoints/*.ckpt")[0],
+        'adapters': glob.glob(f"tb_logs/128LogMelFBank_b64_16000_adapters_AdaptSharedTrue_mhsa_parallel_HistFalseSharedFalse_16bins_None_None/Run_{run_number}/metrics/version_0/checkpoints/*.ckpt")[0]
     }
     
     
@@ -173,12 +196,12 @@ def main(Params):
         'histogram': {
             'adapter_location': 'None',
             'adapter_mode': 'None',
-            'histogram_location': 'all',
+            'histogram_location': 'mhsa',
             'histogram_mode': 'parallel',
             'train_mode': 'linear_probing'
         },
         'adapters': {
-            'adapter_location': 'mhsa_ffn',
+            'adapter_location': 'mhsa',
             'adapter_mode': 'parallel',
             'histogram_location': 'None',
             'histogram_mode': 'None',
@@ -195,8 +218,6 @@ def main(Params):
             checkpoint_path=path,
             Params=params,
             model_name=model_name,
-            num_feature_maps=num_feature_maps,
-            feat_map_size=feat_map_size,
             numBins=numBins,
             Dataset=Dataset
         )
@@ -222,7 +243,13 @@ def main(Params):
     cosine_similarities = compute_layer_cosine_similarity(features_dict, list(models.keys()))
     
     # Save cosine similarity results using the model names
-    save_cosine_similarity(cosine_similarities, list(models.keys()), f'features/cosine_similarity_results_{num_batches}.txt')
+    save_cosine_similarity(cosine_similarities, list(models.keys()), f'features/logmel_cosine_similarity_results_{num_batches}.txt')
+ 
+    # Test for normality across models
+    normality_results = test_normality(features_dict, list(models.keys()))
+    
+    # Save normality test results
+    save_normality_results(normality_results, list(models.keys()), f'features/logmel_normality_test_results_{num_batches}.txt')
 
 
 def parse_args():
@@ -256,7 +283,7 @@ def parse_args():
                         help='learning rate (default: 0.001)')
     parser.add_argument('--use-cuda', default=True, action=argparse.BooleanOptionalAction,
                         help='enables CUDA training')
-    parser.add_argument('--audio_feature', type=str, default='STFT',
+    parser.add_argument('--audio_feature', type=str, default='LogMelFBank',
                         help='Audio feature for extraction')
     parser.add_argument('--optimizer', type=str, default='Adam',
                         help='Select optimizer')
@@ -264,6 +291,8 @@ def parse_args():
                         help='Number of epochs to train each model for (default: 50)')
     parser.add_argument('--sample_rate', type=int, default=16000,
                         help='Dataset Sample Rate'),
+    parser.add_argument('--spec_norm', type=bool, default=False,
+                        help='Normalize spectrograms')
     parser.add_argument('--adapter_location', type=str, default='mhsa_ffn',
                         help='Location for the adapter layers (default: ffn)')
     parser.add_argument('--adapter_mode', type=str, default='parallel',

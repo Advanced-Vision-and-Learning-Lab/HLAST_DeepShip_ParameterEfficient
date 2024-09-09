@@ -18,7 +18,7 @@ from Utils.Network_functions import initialize_model
 import torch.nn.functional as F
 import lightning as L
 import torchmetrics
-
+import pdb
 
 class LitModel(L.LightningModule):
 
@@ -53,6 +53,35 @@ class LitModel(L.LightningModule):
             task="multiclass", num_classes=num_classes)
         
         self.save_hyperparameters()
+
+        # Print number of trainable parameters for each component
+        self.print_parameter_counts()
+    
+    def print_parameter_counts(self):
+        def count_parameters(params):
+            return sum(p.numel() for p in params if p.requires_grad)
+    
+        # MLP head parameters
+        if hasattr(self.model_ft, 'mlp_head'):
+            mlp_head_params = self.model_ft.mlp_head.parameters()
+            print(f"Number of trainable parameters in MLP head: {count_parameters(mlp_head_params)}")
+    
+        # Histogram layers parameters
+        if self.model_ft.use_histogram:
+            histogram_params = self.get_histogram_parameters()
+            if histogram_params:
+                print(f"Number of trainable parameters in histogram layers: {count_parameters(histogram_params)}")
+    
+        # Adapter parameters
+        if self.model_ft.use_adapters:
+            adapter_params = self.get_adapter_parameters()
+            if adapter_params:
+                print(f"Number of trainable parameters in adapters: {count_parameters(adapter_params)}")
+    
+        # Other parameters
+        other_params = self.get_other_parameters()
+        if other_params:
+            print(f"Number of trainable parameters in others: {count_parameters(other_params)}")
 
 
     def forward(self, x):
@@ -106,60 +135,66 @@ class LitModel(L.LightningModule):
     
     
     
-    def configure_optimizers(self):
-        # AdamW optimizer
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
+    
+    # def configure_optimizers(self):
+    #     # AdamW optimizer
+    #     optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
         
+    #     # Cosine annealing scheduler
+    #     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.trainer.max_epochs)
+    
+    #     return [optimizer], [scheduler]
+    
+    def configure_optimizers(self):
+        # Define different learning rates
+        base_lr = self.learning_rate  # Learning rate for the rest of the model
+        mlp_head_lr = self.learning_rate * 10  # Higher learning rate for mlp_head 
+    
+        # Separate the parameters
+        optimizer = torch.optim.AdamW([
+            {'params': self.model_ft.mlp_head.parameters(), 'lr': mlp_head_lr},  # Higher LR for mlp_head
+            {'params': [p for n, p in self.named_parameters() if "mlp_head" not in n], 'lr': base_lr}  # Base LR for the rest
+        ])
+    
         # Cosine annealing scheduler
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.trainer.max_epochs)
     
         return [optimizer], [scheduler]
-    
-
-    # def configure_optimizers(self):
-    #     # Collect parameters for different parts of the model
-    #     mlp_params = list(self.model_ft.mlp_head.parameters())
-        
-    #     histogram_params = []
-    #     if self.h_mode == 'histogram':
-    #         if self.h_location == 'after_encoder':
-    #             histogram_params.extend(list(self.model_ft.histogram_layer.parameters()))
-    #         elif self.h_location == 'within_each':
-    #             histogram_params.extend(list(self.model_ft.histogram_layers.parameters()))
-        
-    #     adapters_params = []
-    #     if self.Use_A:
-    #         if self.a_location in ['both', 'mhsa']:
-    #             adapters_params.extend(list(self.model_ft.adapters_mhsa.parameters()))
-    #         if self.a_location in ['both', 'ffn']:
-    #             adapters_params.extend(list(self.model_ft.adapters_ffn.parameters()))
-        
-    #     # Collect other parameters
-    #     other_params = []
-    #     for name, param in self.model_ft.named_parameters():
-    #         if not param.requires_grad:
-    #             continue
-    #         if 'mlp_head' not in name and 'histogram_layer' not in name and 'histogram_layers' not in name and 'adapters_mhsa' not in name and 'adapters_ffn' not in name:
-    #             other_params.append(param)
-        
-    #     # Define different learning rates
-    #     mlp_lr = 1e-3
-    #     histogram_lr = 1e-3
-    #     adapters_lr = 1e-4
-    #     other_lr = 1e-5
-    
-    #     # Create parameter groups with different learning rates
-    #     optimizer_params = [
-    #         {'params': mlp_params, 'lr': mlp_lr},
-    #         {'params': adapters_params, 'lr': adapters_lr},
-    #         {'params': other_params, 'lr': other_lr}
-    #     ]
-    
-    #     if self.h_mode == 'histogram':
-    #         optimizer_params.append({'params': histogram_params, 'lr': histogram_lr})
-    
-    #     optimizer = torch.optim.Adam(optimizer_params)
-    #     return optimizer
 
 
 
+                
+    def get_histogram_parameters(self):
+        params = []
+        if self.model_ft.histogram_location in ['all', 'mhsa_ffn','mhsa_out', 'mhsa']:
+            params += list(self.model_ft.histogram_layers_mhsa.parameters())
+        if self.model_ft.histogram_location in ['all', 'mhsa_ffn', 'ffn_out', 'ffn']:
+            params += list(self.model_ft.histogram_layers_ffn.parameters())
+        if self.model_ft.histogram_location in ['all', 'mhsa_out', 'ffn_out', 'out']:
+            params += list(self.model_ft.histogram_layers_out.parameters())
+        return params
+
+    
+    def get_adapter_parameters(self):
+        params = []
+        if self.model_ft.adapter_location in ['all', 'mhsa_ffn','mhsa_out', 'mhsa']:
+            params += list(self.model_ft.adapters_mhsa.parameters())
+        if self.model_ft.adapter_location in ['all', 'mhsa_ffn', 'ffn_out', 'ffn']:
+            params += list(self.model_ft.adapters_ffn.parameters())
+        if self.model_ft.adapter_location in ['all', 'mhsa_out', 'ffn_out', 'out']:
+            params += list(self.model_ft.adapters_out.parameters())
+        return params
+
+    
+    def get_other_parameters(self):
+        # Gather other parameters that don't belong to MLP head, histogram, or adapters
+        other_params = []
+        for name, param in self.model_ft.named_parameters():
+
+            if 'mlp_head' not in name and 'histogram' not in name and 'adapter' not in name:
+                other_params.append(param)
+                
+        for name, param in self.feature_extraction_layer.named_parameters():
+                other_params.append(param)
+                        
+        return other_params

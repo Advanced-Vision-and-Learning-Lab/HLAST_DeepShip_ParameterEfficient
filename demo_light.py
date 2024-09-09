@@ -34,6 +34,9 @@ np.bool = bool  # module 'numpy' has no attribute 'bool'
 from SSDataModule import SSAudioDataModule
 from LitModel import LitModel
 
+def count_trainable_params(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
 def main(Params):
 
     # Name of dataset
@@ -58,7 +61,7 @@ def main(Params):
     batch_size = Params['batch_size']
     batch_size = batch_size['train']
 
-    print('\nStarting Experiments...')
+    print('\n\n\nStarting Experiments...')
     
     run_number = 0
     seed_everything(run_number+1, workers=True)
@@ -97,6 +100,11 @@ def main(Params):
 
         model_AST = LitModel(Params, model_name, num_classes, numBins, Dataset)
 
+        num_params = count_trainable_params(model_AST)
+        print(f'Total Trainable Parameters: {num_params}\n')
+        
+        
+        
         logger = TensorBoardLogger(
             save_dir = (f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
            f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
