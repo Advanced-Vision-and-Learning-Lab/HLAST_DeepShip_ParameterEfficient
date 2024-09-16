@@ -27,7 +27,7 @@ class MelSpectrogramExtractor(nn.Module):
             n_mels=n_mels, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db, freeze_parameters=True)
         
         t_n = n_mels
-        # Calculate scaled time_drop_width
+
         scale_factor = sample_rate / 16000.0
         time_drop_width = int(t_n * scale_factor)
         
@@ -40,15 +40,12 @@ class MelSpectrogramExtractor(nn.Module):
 
     def forward(self, waveform):
         
-        
         spectrogram = self.spectrogram_extractor(waveform)
         log_mel_spectrogram = self.logmel_extractor(spectrogram)
-        
 
         log_mel_spectrogram = log_mel_spectrogram.transpose(1, 3)
         log_mel_spectrogram = self.bn0(log_mel_spectrogram)
         log_mel_spectrogram = log_mel_spectrogram.transpose(1, 3)
-        
         
         # if self.training:
         #     log_mel_spectrogram = self.spec_augmenter(log_mel_spectrogram)

@@ -42,9 +42,45 @@ def register_hooks(model):
     # Iterate over each block in the model
     for i, blk in enumerate(model.model_ft.v.blocks):
         # Register a hook for the mlp module in each block
-        hook = blk.mlp.drop.register_forward_hook(partial(hook_fn, f'block_{i}_mlp'))
+        hook = blk.mlp.register_forward_hook(partial(hook_fn, f'block_{i}_mlp'))
         hooks.append(hook)
     return hooks
+
+# def extract_features(model, dataloader, device, num_batches=None):
+#     model.to(device)
+#     model.eval()
+#     features = []
+#     layer_outputs.clear()  # Clear previous outputs
+
+#     hooks = register_hooks(model)  # Register hooks
+
+#     with torch.no_grad():
+#         for i, batch in enumerate(dataloader):
+#             if num_batches is not None and i >= num_batches:
+#                 break
+
+#             inputs, _ = batch
+#             inputs = inputs.to(device)
+#             _ = model(inputs)  # Forward pass to trigger hooks
+            
+#             # Collect features for each layer separately
+#             batch_features = [value.clone() for key, value in layer_outputs.items()]
+#             features.append(batch_features)
+
+#     # Remove hooks after extracting features
+#     for hook in hooks:
+#         hook.remove()
+    
+#     #torch.cuda.empty_cache()
+    
+#     sample_features = features[0] if features else []
+#     num_layers = len(sample_features)
+    
+#     print("Number of layers captured:", num_layers)
+#     if num_layers > 0:
+#         print("Shape:", sample_features[0].shape)
+    
+#     return features
 
 def extract_features(model, dataloader, device, num_batches=None):
     model.to(device)
@@ -63,86 +99,142 @@ def extract_features(model, dataloader, device, num_batches=None):
             inputs = inputs.to(device)
             _ = model(inputs)  # Forward pass to trigger hooks
             
-            # Collect features for each layer separately
-            batch_features = [value.clone() for key, value in layer_outputs.items()]
-            features.append(batch_features)
+            # Collect features for each layer and each sample separately
+            batch_features = [[sample.clone() for sample in value] for value in layer_outputs.values()]
+            features.extend(zip(*batch_features))
 
     # Remove hooks after extracting features
     for hook in hooks:
         hook.remove()
-
-    sample_features = features[0] if features else []
-    num_layers = len(sample_features)
     
+    num_layers = len(features[0]) if features else 0
     print("Number of layers captured:", num_layers)
     if num_layers > 0:
-        print("Shape:", sample_features[0].shape)
+        print("Shape of a single sample feature:", features[0][0].shape)
     
     return features
 
+
+
+from sklearn.metrics.pairwise import cosine_similarity
+
+# def compute_layer_cosine_similarity(features_dict, model_names):
+#     """
+#     Compute cosine similarity of feature maps for each layer compared to the full fine-tune model.
+#     """
+#     cosine_similarities = {i: [] for i in range(12)}
+    
+#     # Assume the first model in the list (full_fine_tune) is the reference model
+#     reference_features = features_dict[model_names[0]]
+    
+#     for model_name in model_names:
+#         features = features_dict[model_name]
+#         for layer_index in range(12):
+#             # concatenate the features from all batches for the current layer
+#             ref_concat = torch.cat([f[layer_index].view(-1) for f in reference_features], dim=0).cpu().numpy()
+#             comp_concat = torch.cat([f[layer_index].view(-1) for f in features], dim=0).cpu().numpy()
+            
+#             # Compute cosine similarity
+#             cos_sim = cosine_similarity(ref_concat.reshape(1, -1), comp_concat.reshape(1, -1))
+#             cosine_similarities[layer_index].append(cos_sim.item())
+    
+#     return cosine_similarities
 
 from sklearn.metrics.pairwise import cosine_similarity
 
 def compute_layer_cosine_similarity(features_dict, model_names):
     """
-    Compute cosine similarity of feature maps for each layer compared to the full fine-tune model.
+    Compute cosine similarity of feature maps for each sample in each batch,
+    compared to the full fine-tune model, and return mean and std.
     """
-    cosine_similarities = {i: [] for i in range(12)}
+    cosine_similarities = {i: {model: {'similarities': [], 'mean': 0, 'std': 0} 
+                               for model in model_names[1:]} 
+                           for i in range(12)}
     
-    # Assume the first model in the list (full_fine_tune) is the reference model
-    reference_features = features_dict[model_names[0]]
+    reference_model = model_names[0]  # Assume the first model is the reference (full fine-tune)
     
-    for model_name in model_names:
-        features = features_dict[model_name]
+    for batch_idx in range(len(features_dict[reference_model])):
         for layer_index in range(12):
-            # concatenate the features from all batches for the current layer
-            ref_concat = torch.cat([f[layer_index].view(-1) for f in reference_features], dim=0).cpu().numpy()
-            comp_concat = torch.cat([f[layer_index].view(-1) for f in features], dim=0).cpu().numpy()
+            ref_features = features_dict[reference_model][batch_idx][layer_index]
             
-            # Compute cosine similarity
-            cos_sim = cosine_similarity(ref_concat.reshape(1, -1), comp_concat.reshape(1, -1))
-            cosine_similarities[layer_index].append(cos_sim.item())
+            for model_name in model_names[1:]:  # Skip the reference model
+                comp_features = features_dict[model_name][batch_idx][layer_index]
+                
+                # Compute cosine similarity for each sample in the batch
+                for ref_sample, comp_sample in zip(ref_features, comp_features):
+                    ref_sample = ref_sample.view(1, -1).cpu().numpy()
+                    comp_sample = comp_sample.view(1, -1).cpu().numpy()
+                    cos_sim = cosine_similarity(ref_sample, comp_sample)[0][0]
+                    cosine_similarities[layer_index][model_name]['similarities'].append(cos_sim)
+    
+    # Compute mean and std for each layer and model
+    for layer_index in range(12):
+        for model_name in model_names[1:]:
+            similarities = cosine_similarities[layer_index][model_name]['similarities']
+            cosine_similarities[layer_index][model_name]['mean'] = np.mean(similarities)
+            cosine_similarities[layer_index][model_name]['std'] = np.std(similarities)
     
     return cosine_similarities
+
 def save_cosine_similarity(cosine_similarities, model_names, filename):
     """
-    Save cosine similarity results for each layer across models.
+    Save mean and std of cosine similarity results for each layer across models.
     """
     with open(filename, 'w') as file:
-        for layer_index, similarities in cosine_similarities.items():
-            sim_str = ', '.join([f"{model_names[i]}: {similarity:.6f}" for i, similarity in enumerate(similarities)])
-            file.write(f"Layer {layer_index} - Cosine Similarities: [{sim_str}]\n")
-            file.write("\n")
-
-from scipy.stats import shapiro
-def test_normality(features_dict, model_names):
-    """
-    Perform Shapiro-Wilk test for normality for each layer.
-    """
-    normality_results = {i: [] for i in range(12)}
-    
-    for model_name in model_names:
-        features = features_dict[model_name]
         for layer_index in range(12):
-            # concatenate the features from all batches for the current layer
-            concat_features = torch.cat([f[layer_index].view(-1) for f in features], dim=0).cpu().numpy()
-            
-            # Shapiro-Wilk test
-            stat, p_value = shapiro(concat_features)
-            normality_results[layer_index].append(p_value)
-    
-    return normality_results
-
-def save_normality_results(normality_results, model_names, filename):
-    """
-    Save Shapiro-Wilk normality test results for each layer across models.
-    """
-    with open(filename, 'w') as file:
-        for layer_index, p_values in normality_results.items():
-            p_val_str = ', '.join([f"{model_names[i]}: {p_value:.6f}" for i, p_value in enumerate(p_values)])
-            file.write(f"Layer {layer_index} - Normality Test (p-values): [{p_val_str}]\n")
+            file.write(f"Layer {layer_index} - Cosine Similarities:\n")
+            for model in model_names[1:]:
+                mean = cosine_similarities[layer_index][model]['mean']
+                std = cosine_similarities[layer_index][model]['std']
+                file.write(f"  {model}: Mean = {mean:.6f}, Std = {std:.6f}\n")
             file.write("\n")
-            
+
+
+# def save_cosine_similarity(cosine_similarities, model_names, filename):
+#     """
+#     Save cosine similarity results for each layer across models.
+#     """
+#     with open(filename, 'w') as file:
+#         for layer_index, similarities in cosine_similarities.items():
+#             sim_str = ', '.join([f"{model_names[i]}: {similarity:.6f}" for i, similarity in enumerate(similarities)])
+#             file.write(f"Layer {layer_index} - Cosine Similarities: [{sim_str}]\n")
+#             file.write("\n")
+
+
+import numpy as np
+from scipy import stats
+
+def compare_models_to_baseline(features_dict, model_names):
+    baseline_model = 'full_fine_tune'
+    results = {}
+
+    for layer in range(12):
+        layer_results = {}
+        baseline_features = torch.cat([f[layer].view(-1) for f in features_dict[baseline_model]]).cpu().numpy()
+        
+        for model in model_names:
+            if model != baseline_model:
+                model_features = torch.cat([f[layer].view(-1) for f in features_dict[model]]).cpu().numpy()
+                statistic, p_value = stats.kruskal(baseline_features, model_features)
+                layer_results[model] = {'statistic': statistic, 'p_value': p_value}
+        
+        results[layer] = layer_results
+    
+    return results
+
+def save_comparison_results(results, filename):
+    with open(filename, 'w') as file:
+        for layer, layer_results in results.items():
+            file.write(f"Layer {layer} - Comparison Results:\n")
+            for model, stats in layer_results.items():
+                file.write(f"  {model} vs full_fine_tune:\n")
+                file.write(f"    Statistic: {stats['statistic']:.6f}\n")
+                file.write(f"    p-value: {stats['p_value']:.6f}\n")
+            file.write("\n")
+
+
+
+
 def main(Params):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -170,10 +262,10 @@ def main(Params):
 
     # Load models
     model_paths = {
-        'full_fine_tune': glob.glob(f"tb_logs/LogMelFBank_b64_16000_full_fine_tune_AdaptSharedFalse_None_None_HistFalseSharedFalse_16bins_None_None/Run_{run_number}/metrics/version_0/checkpoints/*.ckpt")[0],
-        'linear_probing': glob.glob(f"tb_logs/LogMelFBank_b64_16000_linear_probing_AdaptSharedFalse_None_None_HistFalseSharedTrue_16bins_None_None/Run_{run_number}/metrics/version_0/checkpoints/*.ckpt")[0],
+        'full_fine_tune': glob.glob(f"tb_logs/LogMelFBank_b64_16000_full_fine_tune_AdaptSharedFalse_None_None_HistFalseSharedFalse_8bins_None_None/Run_{run_number}/metrics/version_0/checkpoints/*.ckpt")[0],
+        'linear_probing': glob.glob(f"tb_logs/LogMelFBank_b64_16000_linear_probing_AdaptSharedFalse_None_None_HistFalseSharedFalse_8bins_None_None/Run_{run_number}/metrics/version_0/checkpoints/*.ckpt")[0],
         'histogram': glob.glob(f"tb_logs/LogMelFBank_b64_16000_linear_probing_AdaptSharedFalse_None_None_HistTrueSharedTrue_8bins_mhsa_parallel/Run_{run_number}/metrics/version_0/checkpoints/*.ckpt")[0],
-        'adapters': glob.glob(f"tb_logs/128LogMelFBank_b64_16000_adapters_AdaptSharedTrue_mhsa_parallel_HistFalseSharedFalse_16bins_None_None/Run_{run_number}/metrics/version_0/checkpoints/*.ckpt")[0]
+        'adapters': glob.glob(f"tb_logs/256LogMelFBank_b64_16000_adapters_AdaptSharedTrue_mhsa_parallel_HistFalseSharedFalse_8bins_None_None/Run_{run_number}/metrics/version_0/checkpoints/*.ckpt")[0]
     }
     
     
@@ -184,28 +276,40 @@ def main(Params):
             'adapter_mode': 'None',
             'histogram_location': 'None',
             'histogram_mode': 'None',
-            'train_mode': 'full_fine_tune'
+            'train_mode': 'full_fine_tune',
+            'histogram': False,
+            'histograms_shared': False,
+            'adapters_shared': False,
         },
         'linear_probing': {
             'adapter_location': 'None',
             'adapter_mode': 'None',
             'histogram_location': 'None',
             'histogram_mode': 'None',
-            'train_mode': 'linear_probing'
+            'train_mode': 'linear_probing',
+            'histogram': False,
+            'histograms_shared': False,
+            'adapters_shared': False,
         },
         'histogram': {
             'adapter_location': 'None',
             'adapter_mode': 'None',
             'histogram_location': 'mhsa',
             'histogram_mode': 'parallel',
-            'train_mode': 'linear_probing'
+            'train_mode': 'linear_probing',
+            'histogram': True,
+            'histograms_shared': True,
+            'adapters_shared': False,
         },
         'adapters': {
             'adapter_location': 'mhsa',
             'adapter_mode': 'parallel',
             'histogram_location': 'None',
             'histogram_mode': 'None',
-            'train_mode': 'adapters'
+            'train_mode': 'adapters',
+            'histogram': False,
+            'histograms_shared': False,
+            'adapters_shared': True,
         }
     }
     
@@ -231,26 +335,41 @@ def main(Params):
     # Get the test dataloader
     test_loader = data_module.test_dataloader()
     
+    # # Extract features
+    # num_batches = 16
+    # features_dict = {}
+    # for name, model in models.items():
+    #     features = extract_features(model, test_loader, device, num_batches=num_batches)
+    #     features_dict[name] = features
+    
+
+    # # Compute cosine similarity across models
+    # cosine_similarities = compute_layer_cosine_similarity(features_dict, list(models.keys()))
+    
+    # # Save cosine similarity results using the model names
+    # save_cosine_similarity(cosine_similarities, list(models.keys()), 'features/logmel_cosine_similarity_results.txt')
+ 
+
+
+
+
     # Extract features
-    num_batches = 4
+    num_batches = 64
     features_dict = {}
     for name, model in models.items():
         features = extract_features(model, test_loader, device, num_batches=num_batches)
         features_dict[name] = features
     
-
     # Compute cosine similarity across models
     cosine_similarities = compute_layer_cosine_similarity(features_dict, list(models.keys()))
     
     # Save cosine similarity results using the model names
-    save_cosine_similarity(cosine_similarities, list(models.keys()), f'features/logmel_cosine_similarity_results_{num_batches}.txt')
- 
-    # Test for normality across models
-    normality_results = test_normality(features_dict, list(models.keys()))
-    
-    # Save normality test results
-    save_normality_results(normality_results, list(models.keys()), f'features/logmel_normality_test_results_{num_batches}.txt')
+    save_cosine_similarity(cosine_similarities, list(models.keys()), 'features/mean_std_logmel_cosine_similarity_results.txt')
 
+
+    #comparison_results = compare_models_to_baseline(features_dict, list(models.keys()))
+    #save_comparison_results(comparison_results, 'features/ks_model_comparison_results.txt')
+        
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -265,7 +384,7 @@ def parse_args():
                         help='Flag to use adapter shared')
     parser.add_argument('--data_selection', type=int, default=0,
                         help='Dataset selection: See Demo_Parameters for full list of datasets')
-    parser.add_argument('-numBins', type=int, default=16,
+    parser.add_argument('-numBins', type=int, default=8,
                         help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
     parser.add_argument('--train_mode', type=str, default='linear_probing',
                         help='full_fine_tune or linear_probing or adapters')

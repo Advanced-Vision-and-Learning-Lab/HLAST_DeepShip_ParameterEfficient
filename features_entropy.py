@@ -280,7 +280,7 @@ def compute_entropy_skew_kurtosis(data_samples):
         data_flat = sample.flatten()
         
         # Compute histogram and entropy
-        hist, _ = np.histogram(data_flat, bins=100, density=True)
+        hist, _ = np.histogram(data_flat, bins=10, density=True)
         hist = hist[hist > 0]  # Remove zeros to avoid log issues with entropy
         ent = entropy(hist)
         
@@ -308,7 +308,7 @@ def compute_entropy_skew_kurtosis(data_samples):
 logmel_stats = compute_entropy_skew_kurtosis(logmel_features)
 s_logmel_stats = compute_entropy_skew_kurtosis(s_logmel_features)
 vs_logmel_stats = compute_entropy_skew_kurtosis(vs_logmel_features)
-
+print('\n\n')
 print('\n logmel:')
 print("Entropy Mean:", logmel_stats['entropy_mean'])
 print("Entropy Std:", logmel_stats['entropy_std'])

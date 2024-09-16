@@ -1,0 +1,24 @@
+Layer 0 - Cosine Similarities: [full_fine_tune: 1.000000, linear_probing: 0.987999, histogram: 0.986361, adapters: 0.940489]
+
+Layer 1 - Cosine Similarities: [full_fine_tune: 1.000000, linear_probing: 0.978963, histogram: 0.977544, adapters: 0.890653]
+
+Layer 2 - Cosine Similarities: [full_fine_tune: 1.000000, linear_probing: 0.883313, histogram: 0.876714, adapters: 0.568312]
+
+Layer 3 - Cosine Similarities: [full_fine_tune: 1.000000, linear_probing: 0.824720, histogram: 0.814955, adapters: 0.377078]
+
+Layer 4 - Cosine Similarities: [full_fine_tune: 1.000000, linear_probing: 0.746980, histogram: 0.741107, adapters: 0.396799]
+
+Layer 5 - Cosine Similarities: [full_fine_tune: 1.000000, linear_probing: 0.699414, histogram: 0.686824, adapters: 0.385656]
+
+Layer 6 - Cosine Similarities: [full_fine_tune: 1.000000, linear_probing: 0.673453, histogram: 0.671755, adapters: 0.492692]
+
+Layer 7 - Cosine Similarities: [full_fine_tune: 1.000000, linear_probing: 0.692776, histogram: 0.691028, adapters: 0.532906]
+
+Layer 8 - Cosine Similarities: [full_fine_tune: 1.000000, linear_probing: 0.557557, histogram: 0.544137, adapters: 0.438459]
+
+Layer 9 - Cosine Similarities: [full_fine_tune: 1.000000, linear_probing: 0.480599, histogram: 0.442149, adapters: 0.149794]
+
+Layer 10 - Cosine Similarities: [full_fine_tune: 1.000000, linear_probing: 0.676286, histogram: 0.664772, adapters: 0.065598]
+
+Layer 11 - Cosine Similarities: [full_fine_tune: 1.000000, linear_probing: 0.855811, histogram: 0.858966, adapters: 0.828449]
+

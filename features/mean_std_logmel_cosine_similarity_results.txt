@@ -1,0 +1,60 @@
+Layer 0 - Cosine Similarities:
+  linear_probing: Mean = 0.987776, Std = 0.004864
+  histogram: Mean = 0.986163, Std = 0.005554
+  adapters: Mean = 0.933244, Std = 0.025818
+
+Layer 1 - Cosine Similarities:
+  linear_probing: Mean = 0.979380, Std = 0.008781
+  histogram: Mean = 0.978157, Std = 0.009767
+  adapters: Mean = 0.890613, Std = 0.037180
+
+Layer 2 - Cosine Similarities:
+  linear_probing: Mean = 0.886338, Std = 0.042560
+  histogram: Mean = 0.880703, Std = 0.045221
+  adapters: Mean = 0.570942, Std = 0.120430
+
+Layer 3 - Cosine Similarities:
+  linear_probing: Mean = 0.826527, Std = 0.057202
+  histogram: Mean = 0.817955, Std = 0.060363
+  adapters: Mean = 0.400851, Std = 0.141786
+
+Layer 4 - Cosine Similarities:
+  linear_probing: Mean = 0.751753, Std = 0.082291
+  histogram: Mean = 0.746332, Std = 0.082682
+  adapters: Mean = 0.392022, Std = 0.115887
+
+Layer 5 - Cosine Similarities:
+  linear_probing: Mean = 0.698888, Std = 0.087411
+  histogram: Mean = 0.687443, Std = 0.090604
+  adapters: Mean = 0.409298, Std = 0.100796
+
+Layer 6 - Cosine Similarities:
+  linear_probing: Mean = 0.678951, Std = 0.088253
+  histogram: Mean = 0.676886, Std = 0.086085
+  adapters: Mean = 0.496591, Std = 0.066562
+
+Layer 7 - Cosine Similarities:
+  linear_probing: Mean = 0.698710, Std = 0.116999
+  histogram: Mean = 0.697106, Std = 0.116308
+  adapters: Mean = 0.541982, Std = 0.094082
+
+Layer 8 - Cosine Similarities:
+  linear_probing: Mean = 0.582245, Std = 0.169996
+  histogram: Mean = 0.570851, Std = 0.169604
+  adapters: Mean = 0.461729, Std = 0.127699
+
+Layer 9 - Cosine Similarities:
+  linear_probing: Mean = 0.492203, Std = 0.191876
+  histogram: Mean = 0.465330, Std = 0.198280
+  adapters: Mean = 0.218811, Std = 0.181642
+
+Layer 10 - Cosine Similarities:
+  linear_probing: Mean = 0.635502, Std = 0.207334
+  histogram: Mean = 0.630595, Std = 0.210201
+  adapters: Mean = 0.164271, Std = 0.308380
+
+Layer 11 - Cosine Similarities:
+  linear_probing: Mean = 0.869330, Std = 0.108771
+  histogram: Mean = 0.872650, Std = 0.103942
+  adapters: Mean = 0.847391, Std = 0.154095
+

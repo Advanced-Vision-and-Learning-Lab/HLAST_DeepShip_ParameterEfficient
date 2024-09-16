@@ -12,7 +12,7 @@ import pdb
 from .RBFHistogramPooling import HistogramLayer
 
 class AdapterLayer(nn.Module):
-    def __init__(self, dim, reduction_factor=128):
+    def __init__(self, dim, reduction_factor=256):
         super(AdapterLayer, self).__init__()
         self.down_proj = nn.Linear(dim, dim // reduction_factor)
         self.up_proj = nn.Linear(dim // reduction_factor, dim)
@@ -147,7 +147,7 @@ class ASTModel(nn.Module):
             
             print(f"\nNumber of transformer blocks: {len(self.v.blocks)}")
             
-            self.reduction_factor = 128
+            self.reduction_factor = 256
             self.use_adapters = use_adapters
             self.adapter_mode = adapter_mode
             self.adapter_location = adapter_location
@@ -275,13 +275,15 @@ class ASTModel(nn.Module):
                         print(f"Histogram Layers for OUTPUT Initialized: {self.histogram_layers_out}\n")
     
         
-
             norm_input_dim = self.original_embedding_dim
-    
             self.v.norm = nn.LayerNorm(norm_input_dim)
-            
             self.mlp_head = nn.Linear(norm_input_dim, label_dim)
     
+            # self.mlp_head = nn.Sequential(
+            #     nn.LayerNorm(self.original_embedding_dim),
+            #     nn.Linear(self.original_embedding_dim, label_dim)
+            # )
+            
     
             f_dim, t_dim = self.get_shape(fstride, tstride, input_fdim, input_tdim)
             num_patches = f_dim * t_dim

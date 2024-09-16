@@ -1,0 +1,132 @@
+Layer 0 - Comparison Results:
+  linear_probing vs full_fine_tune:
+    Statistic: 429.932325
+    p-value: 0.000000
+  histogram vs full_fine_tune:
+    Statistic: 420.162980
+    p-value: 0.000000
+  adapters vs full_fine_tune:
+    Statistic: 1153.956676
+    p-value: 0.000000
+
+Layer 1 - Comparison Results:
+  linear_probing vs full_fine_tune:
+    Statistic: 62.367106
+    p-value: 0.000000
+  histogram vs full_fine_tune:
+    Statistic: 58.345386
+    p-value: 0.000000
+  adapters vs full_fine_tune:
+    Statistic: 10391.831331
+    p-value: 0.000000
+
+Layer 2 - Comparison Results:
+  linear_probing vs full_fine_tune:
+    Statistic: 395.463630
+    p-value: 0.000000
+  histogram vs full_fine_tune:
+    Statistic: 509.513326
+    p-value: 0.000000
+  adapters vs full_fine_tune:
+    Statistic: 4763.976967
+    p-value: 0.000000
+
+Layer 3 - Comparison Results:
+  linear_probing vs full_fine_tune:
+    Statistic: 10.633546
+    p-value: 0.001111
+  histogram vs full_fine_tune:
+    Statistic: 27.244594
+    p-value: 0.000000
+  adapters vs full_fine_tune:
+    Statistic: 3558.189300
+    p-value: 0.000000
+
+Layer 4 - Comparison Results:
+  linear_probing vs full_fine_tune:
+    Statistic: 261.816785
+    p-value: 0.000000
+  histogram vs full_fine_tune:
+    Statistic: 212.024086
+    p-value: 0.000000
+  adapters vs full_fine_tune:
+    Statistic: 109.107941
+    p-value: 0.000000
+
+Layer 5 - Comparison Results:
+  linear_probing vs full_fine_tune:
+    Statistic: 10.777436
+    p-value: 0.001027
+  histogram vs full_fine_tune:
+    Statistic: 14.406122
+    p-value: 0.000147
+  adapters vs full_fine_tune:
+    Statistic: 1128.379239
+    p-value: 0.000000
+
+Layer 6 - Comparison Results:
+  linear_probing vs full_fine_tune:
+    Statistic: 67.354117
+    p-value: 0.000000
+  histogram vs full_fine_tune:
+    Statistic: 120.172999
+    p-value: 0.000000
+  adapters vs full_fine_tune:
+    Statistic: 96.392346
+    p-value: 0.000000
+
+Layer 7 - Comparison Results:
+  linear_probing vs full_fine_tune:
+    Statistic: 0.000046
+    p-value: 0.994563
+  histogram vs full_fine_tune:
+    Statistic: 9.794225
+    p-value: 0.001751
+  adapters vs full_fine_tune:
+    Statistic: 356.342296
+    p-value: 0.000000
+
+Layer 8 - Comparison Results:
+  linear_probing vs full_fine_tune:
+    Statistic: 42.457837
+    p-value: 0.000000
+  histogram vs full_fine_tune:
+    Statistic: 53.762685
+    p-value: 0.000000
+  adapters vs full_fine_tune:
+    Statistic: 10283.590387
+    p-value: 0.000000
+
+Layer 9 - Comparison Results:
+  linear_probing vs full_fine_tune:
+    Statistic: 9443.579969
+    p-value: 0.000000
+  histogram vs full_fine_tune:
+    Statistic: 14852.876461
+    p-value: 0.000000
+  adapters vs full_fine_tune:
+    Statistic: 42886.993574
+    p-value: 0.000000
+
+Layer 10 - Comparison Results:
+  linear_probing vs full_fine_tune:
+    Statistic: 878.865905
+    p-value: 0.000000
+  histogram vs full_fine_tune:
+    Statistic: 1722.614466
+    p-value: 0.000000
+  adapters vs full_fine_tune:
+    Statistic: 29570.202186
+    p-value: 0.000000
+
+Layer 11 - Comparison Results:
+  linear_probing vs full_fine_tune:
+    Statistic: 31.703374
+    p-value: 0.000000
+  histogram vs full_fine_tune:
+    Statistic: 3.577591
+    p-value: 0.058564
+  adapters vs full_fine_tune:
+    Statistic: 1698.018457
+    p-value: 0.000000
+

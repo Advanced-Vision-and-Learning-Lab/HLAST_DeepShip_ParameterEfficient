@@ -18,14 +18,20 @@ class Feature_Extraction_Layer(nn.Module):
         self.input_feature = input_feature
         
         # Initialize logmelfbank
-
         n_fft = 1024
         win_length = 1024
         hop_length = 1000 
         n_mels = 48
-        fmin = 10
+        fmin = 1
         fmax = 8000
         
+        # Initialize logmelfbank
+        # n_fft = 4096
+        # win_length = 4096
+        # hop_length = 512 
+        # n_mels = 128
+        # fmin = 1
+        # fmax = 4000
         
         self.LogMelFBank = MelSpectrogramExtractor(
             sample_rate=sample_rate, 
@@ -63,6 +69,7 @@ class Feature_Extraction_Layer(nn.Module):
         x = self.features[self.input_feature](x)
 
         x = x.unsqueeze(1)
+
 
         return x
 

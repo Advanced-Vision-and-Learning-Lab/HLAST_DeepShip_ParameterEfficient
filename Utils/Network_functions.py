@@ -40,12 +40,14 @@ def initialize_model(model_name, num_classes, numBins, sample_rate=16000,
     a_shared = a_shared
     h_shared = h_shared
     NumBins = numBins
+    
+    
     model_ft = ASTModel(label_dim=num_classes, input_fdim=inpf, input_tdim=inpt, 
             imagenet_pretrain=use_pretrained, audioset_pretrain=use_pretrained, adapter_shared=a_shared, hist_shared=h_shared,
             use_adapters=Use_A, adapter_mode=adapter_mode, adapter_location=adapter_location,NumBins=NumBins,
             use_histogram=Use_H, histogram_mode=histogram_mode, histogram_operation=h_operation, histogram_location=histogram_location)
 
-    print("\nPETL settings:")
+    print("\nSettings:")
     print(f"Use adapters: {Use_A}")
     print(f"Adapter mode: {adapter_mode}")
     print(f"Adapter location: {adapter_location}")

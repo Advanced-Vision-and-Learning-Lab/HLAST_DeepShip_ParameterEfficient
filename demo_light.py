@@ -198,7 +198,7 @@ def parse_args():
                         help='learning rate (default: 0.001)')
     parser.add_argument('--use-cuda', default=True, action=argparse.BooleanOptionalAction,
                         help='enables CUDA training')
-    parser.add_argument('--audio_feature', type=str, default='STFT',
+    parser.add_argument('--audio_feature', type=str, default='LogMelFBank',
                         help='Audio feature for extraction')
     parser.add_argument('--optimizer', type=str, default='Adam',
                         help='Select optimizer')
