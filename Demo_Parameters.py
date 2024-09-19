@@ -64,7 +64,9 @@ def Parameters(args):
     #Patience is the number of epochs to observe if a metric (loss or accuarcy)
     #is minimized or maximized
     patience = args.patience
-    spec_norm = args.spec_norm
+    window_length = args.window_length
+    hop_length = args.hop_length
+    number_mels = args.number_mels
     
     #Pin memory for dataloader (set to True for experiments)
     pin_memory = False
@@ -122,16 +124,14 @@ def Parameters(args):
                           'Dataset': Dataset, 'data_dir': data_dir,'segment_length':segment_length,'sample_rate':sample_rate,
                           'optimizer': optimizer,'new_dir': new_dir,
                           'num_workers': num_workers,'lr': lr,'batch_size' : batch_size, 
-                          'num_epochs': num_epochs, 
-                          'normalize_count': normalize_count, 
+                          'num_epochs': num_epochs,'normalize_count': normalize_count, 
                           'normalize_bins': normalize_bins,'parallel': parallel,
-                          'numBins': numBins,
-                          'Model_name': Model_name, 'num_classes': num_classes, 
+                          'numBins': numBins,'Model_name': Model_name, 'num_classes': num_classes, 
                           'Splits': Splits, 'train_mode': train_mode,
                           'hist_model': Hist_model_name, 'use_pretrained': use_pretrained,
-                          'pin_memory': pin_memory, 
-                          'Parallelize': Parallelize_model,'feature': feature, 'audio_features': audio_features,
-                          'patience': patience,'spec_norm':spec_norm,
+                          'pin_memory': pin_memory,'Parallelize': Parallelize_model,
+                          'feature': feature, 'audio_features': audio_features,'patience': patience,
+                          'window_length':window_length,'hop_length':hop_length,'number_mels':number_mels,
                           'adapter_location': args.adapter_location,
                           'adapter_mode': args.adapter_mode,
                           'histogram_location': args.histogram_location,

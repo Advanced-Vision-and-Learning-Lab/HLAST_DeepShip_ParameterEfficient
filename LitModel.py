@@ -30,7 +30,9 @@ class LitModel(L.LightningModule):
 
         self.model_ft, self.feature_extraction_layer = initialize_model(model_name, num_classes,
                                                                         numBins,Params['sample_rate'],
-                                                                        spec_norm=Params['spec_norm'],
+                                                                        window_length=Params['window_length'],
+                                                                        hop_length=Params['hop_length'],
+                                                                        number_mels=Params['number_mels'],
                                                                         t_mode=Params['train_mode'],
                                                                         histogram=Params['histogram'],
                                                                         h_shared=Params['histograms_shared'],

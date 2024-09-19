@@ -105,12 +105,22 @@ def main(Params):
         
         
         
+        # logger = TensorBoardLogger(
+        #     save_dir = (f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
+        #    f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+        #    f"_{Params['histogram_mode']}/Run_{run_number}"),
+        #     name="metrics"
+        # )
+
         logger = TensorBoardLogger(
-            save_dir = (f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-           f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
-           f"_{Params['histogram_mode']}/Run_{run_number}"),
+            save_dir=(
+                f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
+                f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+                f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run_number}"
+            ),
             name="metrics"
         )
+
 
         trainer = L.Trainer(
             max_epochs=Params['num_epochs'],
@@ -140,9 +150,15 @@ def main(Params):
         best_test_acc = test_results[0]['test_acc']
         all_test_accs.append(best_test_acc)
     
-        results_filename = (f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-                            f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
-                            f"_{Params['histogram_mode']}/Run_{run_number}/metrics.txt")
+    
+        results_filename = (
+        f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
+        f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+        f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run_number}/metrics.txt"
+        )
+        #results_filename = (f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
+        #                    f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+        #                    f"_{Params['histogram_mode']}/Run_{run_number}/metrics.txt")
         with open(results_filename, "a") as file:
             file.write(f"Run_{run_number}:\n\n")
             file.write(f"Best Validation Accuracy: {best_val_acc:.4f}\n")
@@ -154,9 +170,18 @@ def main(Params):
     overall_avg_test_acc = np.mean(all_test_accs)
     overall_std_test_acc = np.std(all_test_accs)
     
-    summary_filename = (f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-                    f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
-                    f"_{Params['histogram_mode']}/summary_metrics.txt")
+    
+    
+    summary_filename = (
+        f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
+        f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+        f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/summary_metrics.txt"
+    )
+
+    #summary_filename = (f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
+    #                f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+    #                f"_{Params['histogram_mode']}/summary_metrics.txt")
+    
     with open(summary_filename, "a") as file:
         file.write("Overall Results Across All Runs\n\n")
         file.write(f"Overall Average of Best Validation Accuracies: {overall_avg_val_acc:.4f}\n")
@@ -204,8 +229,12 @@ def parse_args():
                         help='Select optimizer')
     parser.add_argument('--patience', type=int, default=25,
                         help='Number of epochs to train each model for (default: 50)')
-    parser.add_argument('--spec_norm', type=bool, default=False,
-                        help='Normalize spectrograms')
+    parser.add_argument('--window_length', type=int, default=1024,
+                        help='window length')
+    parser.add_argument('--hop_length', type=int, default=1000,
+                        help='hop length')
+    parser.add_argument('--number_mels', type=int, default=64,
+                        help='number of mels')
     parser.add_argument('--sample_rate', type=int, default=16000,
                         help='Dataset Sample Rate'),
     parser.add_argument('--adapter_location', type=str, default='None',

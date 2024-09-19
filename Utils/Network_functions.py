@@ -10,7 +10,8 @@ from src.models import ASTModel
 def initialize_model(model_name, num_classes, numBins, sample_rate=16000,
                      t_mode='full_fine_tune', histogram=True, h_shared=True, a_shared=True,
                      parallel=True, use_pretrained=True,
-                     input_feature='STFT', RGB=True,spec_norm=False,
+                     input_feature='STFT', RGB=True,
+                     window_length=1024, hop_length=128, number_mels=64,
                      adapter_location='ffn', adapter_mode='parallel', 
                      histogram_location='ffn', histogram_mode='parallel'):
     
@@ -18,7 +19,9 @@ def initialize_model(model_name, num_classes, numBins, sample_rate=16000,
         RGB = False    
 
     # Initialize feature layer
-    feature_layer = Feature_Extraction_Layer(input_feature=input_feature,sample_rate=sample_rate, RGB=RGB, spec_norm=spec_norm)
+    feature_layer = Feature_Extraction_Layer(input_feature=input_feature, sample_rate=sample_rate,
+                                             window_length=window_length, hop_length=hop_length, number_mels=number_mels, RGB=RGB)
+    
     ft_dims = feature_layer.output_dims
 
     model_ft = None

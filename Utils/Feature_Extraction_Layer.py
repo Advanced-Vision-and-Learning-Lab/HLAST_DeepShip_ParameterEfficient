@@ -5,33 +5,30 @@ from .LogMelFilterBank import MelSpectrogramExtractor
 import pdb
 
 class Feature_Extraction_Layer(nn.Module):
-    def __init__(self, input_feature, sample_rate=16000, window_length=250, 
-                 hop_length=64, RGB=False, spec_norm=False):
+    def __init__(self, input_feature, sample_rate=16000, window_length=1024, 
+                 hop_length=128, number_mels=64, RGB=False):
         super(Feature_Extraction_Layer, self).__init__()
         
         self.sample_rate = sample_rate   
         self.sample_frequency = sample_rate 
-        
         self.num_channels = 1
-        
-        self.spec_norm = spec_norm
         self.input_feature = input_feature
         
         # Initialize logmelfbank
-        n_fft = 1024
-        win_length = 1024
-        hop_length = 1000 
-        n_mels = 48
-        fmin = 1
-        fmax = 8000
+        # n_fft = 1024
+        # win_length = 1024
+        # hop_length = 1000 
+        # n_mels = 48
+        # fmin = 1
+        # fmax = 8000
         
         # Initialize logmelfbank
-        # n_fft = 4096
-        # win_length = 4096
-        # hop_length = 512 
-        # n_mels = 128
-        # fmin = 1
-        # fmax = 4000
+        win_length = window_length
+        n_fft = window_length
+        hop_length = hop_length 
+        n_mels = number_mels
+        fmin = 1
+        fmax = 6000
         
         self.LogMelFBank = MelSpectrogramExtractor(
             sample_rate=sample_rate, 

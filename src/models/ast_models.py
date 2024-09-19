@@ -275,14 +275,14 @@ class ASTModel(nn.Module):
                         print(f"Histogram Layers for OUTPUT Initialized: {self.histogram_layers_out}\n")
     
         
-            norm_input_dim = self.original_embedding_dim
-            self.v.norm = nn.LayerNorm(norm_input_dim)
-            self.mlp_head = nn.Linear(norm_input_dim, label_dim)
+            # norm_input_dim = self.original_embedding_dim
+            # self.v.norm = nn.LayerNorm(norm_input_dim)
+            # self.mlp_head = nn.Linear(norm_input_dim, label_dim)
     
-            # self.mlp_head = nn.Sequential(
-            #     nn.LayerNorm(self.original_embedding_dim),
-            #     nn.Linear(self.original_embedding_dim, label_dim)
-            # )
+            self.mlp_head = nn.Sequential(
+                nn.LayerNorm(self.original_embedding_dim),
+                nn.Linear(self.original_embedding_dim, label_dim)
+            )
             
     
             f_dim, t_dim = self.get_shape(fstride, tstride, input_fdim, input_tdim)
@@ -392,7 +392,7 @@ class ASTModel(nn.Module):
                     hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
                     x = x + hist_features_flat
 
-        x = self.v.norm(x)
+        #x = self.v.norm(x)
         x = (x[:, 0] + x[:, 1]) / 2
         x = self.mlp_head(x)
 
