@@ -103,7 +103,7 @@ class esc_LitModel(L.LightningModule):
 
         self.train_acc(y_pred, y)
         self.log('train_acc', self.train_acc, on_step=False, on_epoch=True)
-        self.log('loss', loss, on_step=False, on_epoch=True)
+        self.log('loss', loss, on_step=True, on_epoch=True)
         return loss
 
     def validation_step(self, val_batch, batch_idx):

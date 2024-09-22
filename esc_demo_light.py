@@ -53,7 +53,7 @@ def main(Params):
     batch_size = Params['batch_size']
     batch_size = batch_size['train']
 
-    print('\n\n\nStarting Experiments...')
+    print('\nStarting Experiments...')
     
     original_data_dir = "./esc50_data"
     resampled_data_dir = "./esc50_data_resampled"
@@ -66,7 +66,9 @@ def main(Params):
     data_module = ESC50DataModule(data_dir=resampled_data_dir, batch_size=Params['batch_size'])
     data_module.setup()
 
-    
+    total_samples = len(data_module.train_dataloader().dataset)
+    steps_per_epoch = total_samples // batch_size
+    log_every_n_steps = max(1, steps_per_epoch // 10)  # Log at least 10 times per epoch
 
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
@@ -115,6 +117,7 @@ def main(Params):
                 callbacks=[early_stopping_callback, checkpoint_callback],
                 deterministic=False,
                 logger=logger,
+                log_every_n_steps=log_every_n_steps,
             )
 
             trainer.fit(model=model_AST, datamodule=data_module)
