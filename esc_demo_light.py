@@ -57,9 +57,9 @@ def main(Params):
     
     original_data_dir = "./esc50_data"
     resampled_data_dir = "./esc50_data_resampled"
-    target_sample_rate = 16000  # or any other desired sample rate
+    target_sample_rate = 16000  
 
-    # Prepare the dataset (download, extract, and resample if necessary)
+    # Prepare the dataset 
     prepare_esc50_dataset(original_data_dir, resampled_data_dir, target_sample_rate)
 
     # Use the resampled dataset

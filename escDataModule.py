@@ -2,8 +2,9 @@ import os
 import lightning as L
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
-import torchaudio
+
 from sklearn.model_selection import KFold
+from scipy.io import wavfile
 
 class ESC50Dataset(Dataset):
     def __init__(self, data_dir, file_list):
@@ -13,25 +14,33 @@ class ESC50Dataset(Dataset):
     def __len__(self):
         return len(self.file_list)
 
+    #def __getitem__(self, idx):
+    #    row = self.file_list.iloc[idx]
+    #    audio_path = os.path.join(self.data_dir, 'audio', row['filename'])
+    #    waveform, sample_rate = torchaudio.load(audio_path)
+    #    label = row['target']
+    #    return waveform, label
+
     def __getitem__(self, idx):
         row = self.file_list.iloc[idx]
         audio_path = os.path.join(self.data_dir, 'audio', row['filename'])
-        waveform, sample_rate = torchaudio.load(audio_path)
+        sample_rate, waveform = wavfile.read(audio_path)
         label = row['target']
         return waveform, label
-
+    
 class ESC50DataModule(L.LightningDataModule):
-    def __init__(self, data_dir: str, batch_size: dict, num_workers: int = 16):
+    def __init__(self, data_dir: str, batch_size: dict, num_workers: int = 16, run_number: int = 0):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.fold = 0
+        self.run_number = run_number
         
 
     def setup(self, stage: str = None):
         metadata = pd.read_csv(os.path.join(self.data_dir, 'meta', 'esc50.csv'))
-        self.kf = KFold(n_splits=3, shuffle=True, random_state=42)
+        self.kf = KFold(n_splits=3, shuffle=True, random_state=self.run_number+1)
         self.folds = list(self.kf.split(metadata))
         self.metadata = metadata
 

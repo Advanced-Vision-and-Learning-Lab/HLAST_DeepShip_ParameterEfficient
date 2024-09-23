@@ -104,102 +104,38 @@ def save_accuracy_curves(log_dir, output_path):
     else:
         print("Required scalars ('train_acc', 'val_acc') not found in event files.")
 
-def plot_average_performance(all_train_acc, all_train_loss, all_val_acc, all_val_loss, output_dir):
-    if not all_train_acc or not all_train_loss or not all_val_acc or not all_val_loss:
-        print("Error: Missing data for plotting.")
-        return
-
-    avg_train_acc = np.mean(all_train_acc, axis=0)
-    std_train_acc = np.std(all_train_acc, axis=0)
-    avg_train_loss = np.mean(all_train_loss, axis=0)
-    std_train_loss = np.std(all_train_loss, axis=0)
-    avg_val_acc = np.mean(all_val_acc, axis=0)
-    std_val_acc = np.std(all_val_acc, axis=0)
-    avg_val_loss = np.mean(all_val_loss, axis=0)
-    std_val_loss = np.std(all_val_loss, axis=0)
-
-    if len(avg_train_acc) == 0 or len(avg_val_acc) == 0:
-        print("Error: No data points in accuracy metrics.")
-        return
-
-    epochs = range(len(avg_train_acc))
-
-    # Plot accuracy
-    plt.figure(figsize=(10, 6))
-    plt.plot(epochs, avg_train_acc, label='Average Training Accuracy', color='blue', lw=2)
-    plt.fill_between(epochs, avg_train_acc - std_train_acc, avg_train_acc + std_train_acc, alpha=0.3, color='blue')
-    plt.plot(epochs, avg_val_acc, label='Average Validation Accuracy', color='red', lw=2)
-    plt.fill_between(epochs, avg_val_acc - std_val_acc, avg_val_acc + std_val_acc, alpha=0.3, color='red')
-    plt.xlabel('Epochs', fontsize=15)
-    plt.ylabel('Accuracy', fontsize=15)
-    plt.title('Average Accuracy (3-Fold CV, 3 Runs)', fontsize=18)
-    plt.legend(loc="best", fontsize=12)
-    plt.grid(True)
-    plt.xticks(fontsize=12)
-    plt.yticks(fontsize=12)
-    plt.savefig(os.path.join(output_dir, "average_accuracy.png"), dpi=300, bbox_inches='tight')
-    plt.close()
-
-    # Plot loss
-    plt.figure(figsize=(10, 6))
-    plt.plot(epochs, avg_train_loss, label='Average Training Loss', color='blue', lw=2)
-    plt.fill_between(epochs, avg_train_loss - std_train_loss, avg_train_loss + std_train_loss, alpha=0.3, color='blue')
-    plt.plot(epochs, avg_val_loss, label='Average Validation Loss', color='red', lw=2)
-    plt.fill_between(epochs, avg_val_loss - std_val_loss, avg_val_loss + std_val_loss, alpha=0.3, color='red')
-    plt.xlabel('Epochs', fontsize=15)
-    plt.ylabel('Loss', fontsize=15)
-    plt.title('Average Loss (3-Fold CV, 3 Runs)', fontsize=18)
-    plt.legend(loc="best", fontsize=12)
-    plt.grid(True)
-    plt.xticks(fontsize=12)
-    plt.yticks(fontsize=12)
-    plt.savefig(os.path.join(output_dir, "average_loss.png"), dpi=300, bbox_inches='tight')
-    plt.close()
 
 def main(Params):
     torch.set_float32_matmul_precision('medium')
     
-    num_runs = 3  # Number of runs
+    num_runs = 3  
+    num_folds = 3  
 
-    all_val_acc = []
-    all_val_loss = []
-    all_train_acc = []
-    all_train_loss = []
-    
     for run in range(num_runs):
-        output_dir = f"features/Curves_esc_{Params['feature']}_b{Params['batch_size']['train']}_{Params['sample_rate']}_{Params['train_mode']}_AdaptShared{Params['adapters_shared']}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{Params['histogram']}Shared{Params['histograms_shared']}_{Params['numBins']}bins_{Params['histogram_location']}_{Params['histogram_mode']}/Run_{run}"
-        os.makedirs(output_dir, exist_ok=True)
-        
-        log_dir = f"tb_logs/esc_{Params['feature']}_b{Params['batch_size']['train']}_{Params['sample_rate']}_{Params['train_mode']}_AdaptShared{Params['adapters_shared']}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{Params['histogram']}Shared{Params['histograms_shared']}_{Params['numBins']}bins_{Params['histogram_location']}_{Params['histogram_mode']}/Run_{run}/metrics"
-        
-        # Save learning curves
-        learning_curves_output_path = os.path.join(output_dir, f"learning_curves_run{run}.png")
-        save_learning_curves(log_dir, learning_curves_output_path)
-        
-        # Save accuracy curves
-        accuracy_curves_output_path = os.path.join(output_dir, f"accuracy_curves_run{run}.png")
-        save_accuracy_curves(log_dir, accuracy_curves_output_path)
+        for fold in range(num_folds):
+            batch_size = Params['batch_size']['train']
+            a_shared = Params['adapters_shared']
+            h_mode = Params['histogram']
+            h_shared = Params['histograms_shared']
+            numBins = Params['numBins']
 
-        # Extract validation accuracy and loss for average performance calculation
-        event_paths = []
-        for root, dirs, files in os.walk(log_dir):
-            for file in files:
-                if file.startswith('events.out.tfevents.'):
-                    event_paths.append(os.path.join(root, file))
-        
-        val_acc = extract_scalar_from_events(event_paths, 'val_acc')
-        val_loss = extract_scalar_from_events(event_paths, 'val_loss')
-        
-        train_acc = extract_scalar_from_events(event_paths, 'train_acc')
-        train_loss = extract_scalar_from_events(event_paths, 'loss_epoch')
-        
-        all_train_acc.extend(train_acc)
-        all_train_loss.extend(train_loss)
-        all_val_acc.extend(val_acc)
-        all_val_loss.extend(val_loss)
+            log_dir = (
+                f"tb_logs/esc_{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
+                f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+                f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run}_Fold_{fold}/metrics"
+            )
 
-    # Plot average performance across all runs and folds
-    plot_average_performance(all_train_acc, all_train_loss, all_val_acc, all_val_loss, output_dir)
+            output_dir = f"features/Curves_{log_dir.split('tb_logs/')[1]}"
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Save learning curves
+            learning_curves_output_path = os.path.join(output_dir, f"learning_curves_run{run}_fold{fold}.png")
+            save_learning_curves(log_dir, learning_curves_output_path)
+            
+            # Save accuracy curves
+            accuracy_curves_output_path = os.path.join(output_dir, f"accuracy_curves_run{run}_fold{fold}.png")
+            save_accuracy_curves(log_dir, accuracy_curves_output_path)
+
 
 
 def parse_args():
@@ -239,7 +175,7 @@ def parse_args():
                         help='window length')
     parser.add_argument('--hop_length', type=int, default=512,
                         help='hop length')
-    parser.add_argument('--number_mels', type=int, default=64,
+    parser.add_argument('--number_mels', type=int, default=128,
                         help='number of mels')
     parser.add_argument('--sample_rate', type=int, default=16000,
                         help='Dataset Sample Rate'),
