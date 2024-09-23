@@ -58,30 +58,26 @@ def main(Params):
     original_data_dir = "./esc50_data"
     resampled_data_dir = "./esc50_data_resampled"
     target_sample_rate = 16000  
-
+    
     # Prepare the dataset 
-    prepare_esc50_dataset(original_data_dir, resampled_data_dir, target_sample_rate)
-
+    prepare_esc50_dataset(original_data_dir, resampled_data_dir, target_sample_rate, num_workers=16)
+    
     # Use the resampled dataset
-    data_module = ESC50DataModule(data_dir=resampled_data_dir, batch_size=Params['batch_size'])
+    data_module = ESC50DataModule(data_dir=resampled_data_dir, batch_size=Params['batch_size'], num_workers=16)
     data_module.setup()
-
-    total_samples = len(data_module.train_dataloader().dataset)
-    steps_per_epoch = total_samples // batch_size
-    log_every_n_steps = max(1, steps_per_epoch // 10)  # Log at least 10 times per epoch
-
+    
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
     numRuns = 3
     num_classes = 50  
-
+    
     for run_number in range(numRuns):
         seed_everything(run_number + 1, workers=True)
         print(f'\nStarting Run {run_number}\n')
-
-        for fold in range(3):  # 3-fold cross-validation
+    
+        for fold in range(1, 6):  # 5-fold cross-validation
             data_module.set_fold(fold)
-
+    
             checkpoint_callback = ModelCheckpoint(
                 monitor='val_acc',
                 filename=f'best-run{run_number}-fold{fold}-' + '{epoch:02d}-{val_acc:.2f}',
@@ -90,19 +86,19 @@ def main(Params):
                 verbose=True,
                 save_weights_only=True
             )
-
+    
             early_stopping_callback = EarlyStopping(
                 monitor='val_loss',
                 patience=Params['patience'],
                 verbose=True,
                 mode='min'
             )
-
+    
             model_AST = esc_LitModel(Params, model_name, num_classes, numBins)
-
+    
             num_params = count_trainable_params(model_AST)
             print(f'Total Trainable Parameters: {num_params}\n')
-
+    
             logger = TensorBoardLogger(
                 save_dir=(
                     f"tb_logs/esc_{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
@@ -111,45 +107,43 @@ def main(Params):
                 ),
                 name="metrics"
             )
-
+    
             trainer = L.Trainer(
                 max_epochs=Params['num_epochs'],
                 callbacks=[early_stopping_callback, checkpoint_callback],
                 deterministic=False,
                 logger=logger,
-                log_every_n_steps=log_every_n_steps,
+                log_every_n_steps=20,
             )
-
+    
             trainer.fit(model=model_AST, datamodule=data_module)
-
+    
             best_val_acc = checkpoint_callback.best_model_score.item()
             all_val_accs.append(best_val_acc)
-
+    
             results_filename = (
                 f"tb_logs/esc_{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
                 f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
                 f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run_number}_Fold_{fold}/metrics.txt"
             )
-
+    
             with open(results_filename, "a") as file:
                 file.write(f"Run_{run_number}_Fold_{fold}:\n\n")
                 file.write(f"Best Validation Accuracy: {best_val_acc:.4f}\n")
-
+    
     overall_avg_val_acc = np.mean(all_val_accs)
     overall_std_val_acc = np.std(all_val_accs)
-     
+    
     summary_filename = (
         f"tb_logs/esc_{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
         f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
         f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/summary_metrics.txt"
     )
-
+    
     with open(summary_filename, "a") as file:
         file.write("Overall Results Across All Runs and Folds\n\n")
         file.write(f"Overall Average of Best Validation Accuracies: {overall_avg_val_acc:.4f}\n")
         file.write(f"Overall Standard Deviation of Best Validation Accuracies: {overall_std_val_acc:.4f}\n\n")
-
-    
 
 
 def parse_args():

@@ -7,6 +7,7 @@ tb_logs/
 pretrained_models/
 esc50_data/
 esc50_data_resampled/
+features/
 
 # Ignore specific large files
 

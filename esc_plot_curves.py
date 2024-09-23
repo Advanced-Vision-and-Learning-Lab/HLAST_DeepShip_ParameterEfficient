@@ -21,6 +21,7 @@ np.int = int  # module 'numpy' has no attribute 'int'
 np.object = object  # module 'numpy' has no attribute 'object'
 np.bool = bool  # module 'numpy' has no attribute 'bool'
 
+
 def extract_scalar_from_events(event_paths, scalar_name):
     scalar_values = []
     for event_path in event_paths:
@@ -40,102 +41,96 @@ def list_available_scalars(event_paths):
         available_scalars.update(event_acc.Tags()['scalars'])
     return available_scalars
 
-def save_learning_curves(log_dir, output_path):
-    event_paths = []
-    for root, dirs, files in os.walk(log_dir):
-        for file in files:
-            if file.startswith('events.out.tfevents.'):
-                event_paths.append(os.path.join(root, file))
-
-    available_scalars = list_available_scalars(event_paths)
-    print("Available Scalars:", available_scalars)
+def save_learning_curves(log_dirs, output_path):
+    plt.figure(figsize=(10, 6))
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
+    line_styles = ['-', '--']
+    line_width = 3
     
-    train_loss = extract_scalar_from_events(event_paths, 'loss_epoch')
-    val_loss = extract_scalar_from_events(event_paths, 'val_loss')
+    for fold, log_dir in enumerate(log_dirs):
+        event_paths = []
+        for root, dirs, files in os.walk(log_dir):
+            for file in files:
+                if file.startswith('events.out.tfevents.'):
+                    event_paths.append(os.path.join(root, file))
 
-    if train_loss and val_loss:
-        plt.figure(figsize=(10, 6))
-        for i in range(len(train_loss)):
-            plt.plot(train_loss[i], label=f'Training Loss (Fold {i+1})', lw=2)
-            plt.plot(val_loss[i], label=f'Validation Loss (Fold {i+1})', lw=2, linestyle='--')
+        available_scalars = list_available_scalars(event_paths)
+        print(f"Available Scalars for Fold {fold}:", available_scalars)
         
-        plt.xlabel('Epochs', fontsize=15)
-        plt.ylabel('Loss', fontsize=15)
-        plt.title('Learning Curves (3-Fold CV)', fontsize=18)
-        plt.legend(loc="best", fontsize=12)
-        plt.grid(True)
-        plt.xticks(fontsize=12)
-        plt.yticks(fontsize=12)
+        train_loss = extract_scalar_from_events(event_paths, 'loss_epoch')
+        val_loss = extract_scalar_from_events(event_paths, 'val_loss')
 
-        plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        plt.close()
-    else:
-        print("Required scalars ('loss_epoch', 'val_loss') not found in event files.")
+        if train_loss and val_loss:
+            plt.plot(train_loss[0], label=f'Training Loss (Fold {fold+1})', color=colors[fold], linestyle=line_styles[0], lw=line_width)
+            plt.plot(val_loss[0], label=f'Validation Loss (Fold {fold+1})', color=colors[fold], linestyle=line_styles[1], lw=line_width)
 
-def save_accuracy_curves(log_dir, output_path):
-    event_paths = []
-    for root, dirs, files in os.walk(log_dir):
-        for file in files:
-            if file.startswith('events.out.tfevents.'):
-                event_paths.append(os.path.join(root, file))
+    plt.xlabel('Epochs', fontsize=15)
+    plt.ylabel('Loss', fontsize=15)
+    plt.title('Learning Curves (3-Fold CV)', fontsize=18)
+    plt.legend(loc="best", fontsize=10)
+    plt.grid(True, alpha=0.8)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
 
-    available_scalars = list_available_scalars(event_paths)
-    print("Available Scalars:", available_scalars)
+    plt.savefig(output_path, dpi=300)
+    plt.close()
+
+def save_accuracy_curves(log_dirs, output_path):
+    plt.figure(figsize=(10, 6))
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
+    line_styles = ['-', '--']
+    line_width = 3
     
-    train_acc = extract_scalar_from_events(event_paths, 'train_acc')
-    val_acc = extract_scalar_from_events(event_paths, 'val_acc')
+    for fold, log_dir in enumerate(log_dirs):
+        event_paths = []
+        for root, dirs, files in os.walk(log_dir):
+            for file in files:
+                if file.startswith('events.out.tfevents.'):
+                    event_paths.append(os.path.join(root, file))
 
-    if train_acc and val_acc:
-        plt.figure(figsize=(10, 6))
-        for i in range(len(train_acc)):
-            plt.plot(train_acc[i], label=f'Training Accuracy (Fold {i+1})', lw=2)
-            plt.plot(val_acc[i], label=f'Validation Accuracy (Fold {i+1})', lw=2, linestyle='--')
+        available_scalars = list_available_scalars(event_paths)
+        print(f"Available Scalars for Fold {fold}:", available_scalars)
         
-        plt.xlabel('Epochs', fontsize=15)
-        plt.ylabel('Accuracy', fontsize=15)
-        plt.title('Accuracy Curves (3-Fold CV)', fontsize=18)
-        plt.legend(loc="best", fontsize=12)
-        plt.grid(True)
-        plt.xticks(fontsize=12)
-        plt.yticks(fontsize=12)
+        train_acc = extract_scalar_from_events(event_paths, 'train_acc')
+        val_acc = extract_scalar_from_events(event_paths, 'val_acc')
 
-        plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        plt.close()
-    else:
-        print("Required scalars ('train_acc', 'val_acc') not found in event files.")
+        if train_acc and val_acc:
+            plt.plot(train_acc[0], label=f'Training Accuracy (Fold {fold+1})', color=colors[fold], linestyle=line_styles[0], lw=line_width)
+            plt.plot(val_acc[0], label=f'Validation Accuracy (Fold {fold+1})', color=colors[fold], linestyle=line_styles[1], lw=line_width)
 
+    plt.xlabel('Epochs', fontsize=15)
+    plt.ylabel('Accuracy', fontsize=15)
+    plt.title('Accuracy Curves (3-Fold CV)', fontsize=18)
+    plt.legend(loc="best", fontsize=10)
+    plt.grid(True, alpha=0.8)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
 
+    plt.savefig(output_path, dpi=300)
+    plt.close()
 def main(Params):
     torch.set_float32_matmul_precision('medium')
     
-    num_runs = 3  
-    num_folds = 3  
+    num_runs = 3  # Number of runs
 
     for run in range(num_runs):
-        for fold in range(num_folds):
-            batch_size = Params['batch_size']['train']
-            a_shared = Params['adapters_shared']
-            h_mode = Params['histogram']
-            h_shared = Params['histograms_shared']
-            numBins = Params['numBins']
+        output_dir = f"features/Curves_esc_{Params['feature']}_b{Params['batch_size']['train']}_{Params['sample_rate']}_{Params['train_mode']}_AdaptShared{Params['adapters_shared']}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{Params['histogram']}Shared{Params['histograms_shared']}_{Params['numBins']}bins_{Params['histogram_location']}_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run}"
+        os.makedirs(output_dir, exist_ok=True)
+        
+        log_dirs = []
+        for fold in range(3):
+            log_dir = f"tb_logs/esc_{Params['feature']}_b{Params['batch_size']['train']}_{Params['sample_rate']}_{Params['train_mode']}_AdaptShared{Params['adapters_shared']}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{Params['histogram']}Shared{Params['histograms_shared']}_{Params['numBins']}bins_{Params['histogram_location']}_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run}_Fold_{fold}/metrics"
+            log_dirs.append(log_dir)
+        
+        # Save learning curves
+        learning_curves_output_path = os.path.join(output_dir, f"learning_curves_run{run}.png")
+        save_learning_curves(log_dirs, learning_curves_output_path)
+        
+        # Save accuracy curves
+        accuracy_curves_output_path = os.path.join(output_dir, f"accuracy_curves_run{run}.png")
+        save_accuracy_curves(log_dirs, accuracy_curves_output_path)
 
-            log_dir = (
-                f"tb_logs/esc_{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-                f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
-                f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run}_Fold_{fold}/metrics"
-            )
-
-            output_dir = f"features/Curves_{log_dir.split('tb_logs/')[1]}"
-            os.makedirs(output_dir, exist_ok=True)
-
-            # Save learning curves
-            learning_curves_output_path = os.path.join(output_dir, f"learning_curves_run{run}_fold{fold}.png")
-            save_learning_curves(log_dir, learning_curves_output_path)
-            
-            # Save accuracy curves
-            accuracy_curves_output_path = os.path.join(output_dir, f"accuracy_curves_run{run}_fold{fold}.png")
-            save_accuracy_curves(log_dir, accuracy_curves_output_path)
-
+    
 
 
 def parse_args():

@@ -2,9 +2,8 @@ import os
 import lightning as L
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
-
-from sklearn.model_selection import KFold
 from scipy.io import wavfile
+import numpy as np
 
 class ESC50Dataset(Dataset):
     def __init__(self, data_dir, file_list):
@@ -13,51 +12,40 @@ class ESC50Dataset(Dataset):
 
     def __len__(self):
         return len(self.file_list)
-
-    #def __getitem__(self, idx):
-    #    row = self.file_list.iloc[idx]
-    #    audio_path = os.path.join(self.data_dir, 'audio', row['filename'])
-    #    waveform, sample_rate = torchaudio.load(audio_path)
-    #    label = row['target']
-    #    return waveform, label
-
+    
     def __getitem__(self, idx):
         row = self.file_list.iloc[idx]
         audio_path = os.path.join(self.data_dir, 'audio', row['filename'])
-        sample_rate, waveform = wavfile.read(audio_path)
+        _, waveform = wavfile.read(audio_path)
+        waveform = waveform.astype(np.float32)
         label = row['target']
         return waveform, label
     
 class ESC50DataModule(L.LightningDataModule):
-    def __init__(self, data_dir: str, batch_size: dict, num_workers: int = 16, run_number: int = 0):
+    def __init__(self, data_dir: str, batch_size: dict, num_workers: int = 8):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.fold = 0
-        self.run_number = run_number
-        
+        self.fold = 1  
 
     def setup(self, stage: str = None):
         metadata = pd.read_csv(os.path.join(self.data_dir, 'meta', 'esc50.csv'))
-        self.kf = KFold(n_splits=3, shuffle=True, random_state=self.run_number+1)
-        self.folds = list(self.kf.split(metadata))
         self.metadata = metadata
 
     def set_fold(self, fold: int):
-        assert 0 <= fold < 3, "Fold should be 0, 1, or 2"
+        assert 1 <= fold <= 5, "Fold should be between 1 and 5"
         self.fold = fold
         
     def train_dataloader(self):
-        train_data = self.metadata.iloc[self.folds[self.fold][0]]
+        train_data = self.metadata[self.metadata['fold'] != self.fold]
         return DataLoader(ESC50Dataset(self.data_dir, train_data), 
                           batch_size=self.batch_size['train'], 
                           num_workers=self.num_workers, 
                           shuffle=True)
 
     def val_dataloader(self):
-        val_data = self.metadata.iloc[self.folds[self.fold][1]]
+        val_data = self.metadata[self.metadata['fold'] == self.fold]
         return DataLoader(ESC50Dataset(self.data_dir, val_data), 
                           batch_size=self.batch_size['val'], 
                           num_workers=self.num_workers)
-    
