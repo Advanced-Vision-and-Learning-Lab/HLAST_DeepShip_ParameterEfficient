@@ -144,7 +144,24 @@ class esc_LitModel(L.LightningModule):
     
         return [optimizer], [scheduler]
 
-
+    # def configure_optimizers(self):
+    #     # Initial learning rate
+    #     initial_lr = 1e-5
+        
+    #     # AdamW optimizer
+    #     optimizer = torch.optim.AdamW(self.parameters(), lr=initial_lr)
+        
+    #     # Lambda function for learning rate decay
+    #     def lr_lambda(epoch):
+    #         if epoch < 5:
+    #             return 1.0
+    #         else:
+    #             return 0.85 ** (epoch - 5)
+        
+    #     # LambdaLR scheduler
+    #     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+        
+    #     return [optimizer], [scheduler]
 
                 
     def get_histogram_parameters(self):

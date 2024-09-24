@@ -66,6 +66,25 @@ def main(Params):
     data_module = ESC50DataModule(data_dir=resampled_data_dir, batch_size=Params['batch_size'], num_workers=16)
     data_module.setup()
     
+    
+    # original_data_dir = "./esc50_data"
+    # resampled_data_dir = "./esc50_data_resampled"
+    # target_sample_rate = 16000  
+    
+    # # Set resample to True or False based on your requirement
+    # prepare_esc50_dataset(original_data_dir, resampled_data_dir, target_sample_rate, num_workers=16, resample=True)
+    
+    # # Use the appropriate data directory based on whether you resampled or not
+    # use_resampled = True  # Change this to False to use the original data without resampling
+    
+    # data_module = ESC50DataModule(
+    #     data_dir=resampled_data_dir if use_resampled else original_data_dir,
+    #     batch_size=Params['batch_size'],
+    #     num_workers=16
+    # )
+    # data_module.setup()
+        
+    
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
     numRuns = 3

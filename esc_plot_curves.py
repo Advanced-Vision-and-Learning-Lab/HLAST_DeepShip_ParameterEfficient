@@ -42,10 +42,10 @@ def list_available_scalars(event_paths):
     return available_scalars
 
 def save_learning_curves(log_dirs, output_path):
-    plt.figure(figsize=(10, 6))
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
+    plt.figure(figsize=(8, 6))
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']  # 5 colors for 5 folds
     line_styles = ['-', '--']
-    line_width = 3
+    line_width = 4
     
     for fold, log_dir in enumerate(log_dirs):
         event_paths = []
@@ -55,31 +55,33 @@ def save_learning_curves(log_dirs, output_path):
                     event_paths.append(os.path.join(root, file))
 
         available_scalars = list_available_scalars(event_paths)
-        print(f"Available Scalars for Fold {fold}:", available_scalars)
+        print(f"Available Scalars for Fold {fold+1}:", available_scalars)
         
         train_loss = extract_scalar_from_events(event_paths, 'loss_epoch')
         val_loss = extract_scalar_from_events(event_paths, 'val_loss')
 
         if train_loss and val_loss:
-            plt.plot(train_loss[0], label=f'Training Loss (Fold {fold+1})', color=colors[fold], linestyle=line_styles[0], lw=line_width)
-            plt.plot(val_loss[0], label=f'Validation Loss (Fold {fold+1})', color=colors[fold], linestyle=line_styles[1], lw=line_width)
+            train_loss = train_loss[0] if isinstance(train_loss[0], list) else train_loss
+            val_loss = val_loss[0] if isinstance(val_loss[0], list) else val_loss
+            plt.plot(train_loss, label=f'Training Loss (Fold {fold+1})', color=colors[fold], linestyle=line_styles[0], lw=line_width)
+            plt.plot(val_loss, label=f'Validation Loss (Fold {fold+1})', color=colors[fold], linestyle=line_styles[1], lw=line_width)
 
     plt.xlabel('Epochs', fontsize=15)
     plt.ylabel('Loss', fontsize=15)
-    plt.title('Learning Curves (3-Fold CV)', fontsize=18)
+    plt.title('Learning Curves (5-Fold CV)', fontsize=18)
     plt.legend(loc="best", fontsize=10)
     plt.grid(True, alpha=0.8)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
 
-    plt.savefig(output_path, dpi=300)
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
 
 def save_accuracy_curves(log_dirs, output_path):
-    plt.figure(figsize=(10, 6))
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
+    plt.figure(figsize=(8, 6))
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']  # 5 colors for 5 folds
     line_styles = ['-', '--']
-    line_width = 3
+    line_width = 4
     
     for fold, log_dir in enumerate(log_dirs):
         event_paths = []
@@ -89,25 +91,28 @@ def save_accuracy_curves(log_dirs, output_path):
                     event_paths.append(os.path.join(root, file))
 
         available_scalars = list_available_scalars(event_paths)
-        print(f"Available Scalars for Fold {fold}:", available_scalars)
+        print(f"Available Scalars for Fold {fold+1}:", available_scalars)
         
         train_acc = extract_scalar_from_events(event_paths, 'train_acc')
         val_acc = extract_scalar_from_events(event_paths, 'val_acc')
 
         if train_acc and val_acc:
-            plt.plot(train_acc[0], label=f'Training Accuracy (Fold {fold+1})', color=colors[fold], linestyle=line_styles[0], lw=line_width)
-            plt.plot(val_acc[0], label=f'Validation Accuracy (Fold {fold+1})', color=colors[fold], linestyle=line_styles[1], lw=line_width)
+            train_acc = train_acc[0] if isinstance(train_acc[0], list) else train_acc
+            val_acc = val_acc[0] if isinstance(val_acc[0], list) else val_acc
+            plt.plot(train_acc, label=f'Training Accuracy (Fold {fold+1})', color=colors[fold], linestyle=line_styles[0], lw=line_width)
+            plt.plot(val_acc, label=f'Validation Accuracy (Fold {fold+1})', color=colors[fold], linestyle=line_styles[1], lw=line_width)
 
     plt.xlabel('Epochs', fontsize=15)
     plt.ylabel('Accuracy', fontsize=15)
-    plt.title('Accuracy Curves (3-Fold CV)', fontsize=18)
+    plt.title('Accuracy Curves (5-Fold CV)', fontsize=18)
     plt.legend(loc="best", fontsize=10)
     plt.grid(True, alpha=0.8)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
 
-    plt.savefig(output_path, dpi=300)
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
+    
 def main(Params):
     torch.set_float32_matmul_precision('medium')
     
@@ -118,7 +123,7 @@ def main(Params):
         os.makedirs(output_dir, exist_ok=True)
         
         log_dirs = []
-        for fold in range(3):
+        for fold in range(1, 6):  
             log_dir = f"tb_logs/esc_{Params['feature']}_b{Params['batch_size']['train']}_{Params['sample_rate']}_{Params['train_mode']}_AdaptShared{Params['adapters_shared']}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{Params['histogram']}Shared{Params['histograms_shared']}_{Params['numBins']}bins_{Params['histogram_location']}_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run}_Fold_{fold}/metrics"
             log_dirs.append(log_dir)
         
@@ -129,10 +134,7 @@ def main(Params):
         # Save accuracy curves
         accuracy_curves_output_path = os.path.join(output_dir, f"accuracy_curves_run{run}.png")
         save_accuracy_curves(log_dirs, accuracy_curves_output_path)
-
-    
-
-
+        
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Run histogram experiments')
