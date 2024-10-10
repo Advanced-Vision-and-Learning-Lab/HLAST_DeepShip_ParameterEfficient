@@ -8,7 +8,7 @@ from Utils.Feature_Extraction_Layer import Feature_Extraction_Layer
 
 from src.models import ASTModel
 
-def initialize_model(model_name, num_classes, numBins, sample_rate=16000,
+def initialize_model(model_name, num_classes, numBins,RR, sample_rate=16000,
                      t_mode='full_fine_tune', histogram=True, h_shared=True, a_shared=True,
                      parallel=True, use_pretrained=True,
                      input_feature='STFT', RGB=True,
@@ -44,11 +44,11 @@ def initialize_model(model_name, num_classes, numBins, sample_rate=16000,
     a_shared = a_shared
     h_shared = h_shared
     NumBins = numBins
-    
+    RR = RR
     
     model_ft = ASTModel(label_dim=num_classes, input_fdim=inpf, input_tdim=inpt, 
             imagenet_pretrain=use_pretrained, audioset_pretrain=use_pretrained, adapter_shared=a_shared, hist_shared=h_shared,
-            use_adapters=Use_A, adapter_mode=adapter_mode, adapter_location=adapter_location,NumBins=NumBins,
+            use_adapters=Use_A, adapter_mode=adapter_mode, adapter_location=adapter_location,NumBins=NumBins,RR=RR,
             use_histogram=Use_H, histogram_mode=histogram_mode, histogram_operation=h_operation, histogram_location=histogram_location)
 
     print("\nSettings:")

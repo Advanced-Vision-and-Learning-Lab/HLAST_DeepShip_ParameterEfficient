@@ -45,6 +45,7 @@ def main(Params):
 
     # Number of bins and input convolution feature maps after channel-wise pooling
     numBins = Params['numBins']
+    RR = Params['RR']
 
     h_mode = Params['histogram']
     h_shared = Params['histograms_shared']
@@ -66,24 +67,7 @@ def main(Params):
     data_module = ESC50DataModule(data_dir=resampled_data_dir, batch_size=Params['batch_size'], num_workers=16)
     data_module.setup()
     
-    
-    # original_data_dir = "./esc50_data"
-    # resampled_data_dir = "./esc50_data_resampled"
-    # target_sample_rate = 16000  
-    
-    # # Set resample to True or False based on your requirement
-    # prepare_esc50_dataset(original_data_dir, resampled_data_dir, target_sample_rate, num_workers=16, resample=True)
-    
-    # # Use the appropriate data directory based on whether you resampled or not
-    # use_resampled = True  # Change this to False to use the original data without resampling
-    
-    # data_module = ESC50DataModule(
-    #     data_dir=resampled_data_dir if use_resampled else original_data_dir,
-    #     batch_size=Params['batch_size'],
-    #     num_workers=16
-    # )
-    # data_module.setup()
-        
+
     
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
@@ -113,7 +97,7 @@ def main(Params):
                 mode='min'
             )
     
-            model_AST = esc_LitModel(Params, model_name, num_classes, numBins)
+            model_AST = esc_LitModel(Params, model_name, num_classes, numBins, RR)
     
             num_params = count_trainable_params(model_AST)
             print(f'Total Trainable Parameters: {num_params}\n')
@@ -121,7 +105,7 @@ def main(Params):
             logger = TensorBoardLogger(
                 save_dir=(
                     f"tb_logs/esc_{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-                    f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+                    f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_{RR}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
                     f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run_number}_Fold_{fold}"
                 ),
                 name="metrics"
@@ -142,7 +126,7 @@ def main(Params):
     
             results_filename = (
                 f"tb_logs/esc_{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-                f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+                f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_{RR}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
                 f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run_number}_Fold_{fold}/metrics.txt"
             )
     
@@ -155,7 +139,7 @@ def main(Params):
     
     summary_filename = (
         f"tb_logs/esc_{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-        f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+        f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_{RR}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
         f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/summary_metrics.txt"
     )
     
@@ -178,6 +162,8 @@ def parse_args():
                         help='Flag to use adapter shared')
     parser.add_argument('-numBins', type=int, default=16,
                         help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
+    parser.add_argument('-RR', type=int, default=128,
+                        help='Adapter Reduction Rate (default: 128)')
     parser.add_argument('--train_mode', type=str, default='full_fine_tune',
                         help='full_fine_tune or linear_probing or adapters')
     parser.add_argument('--use_pretrained', default=True, action=argparse.BooleanOptionalAction,

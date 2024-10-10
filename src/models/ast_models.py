@@ -12,7 +12,7 @@ import pdb
 from .RBFHistogramPooling import HistogramLayer
 
 class AdapterLayer(nn.Module):
-    def __init__(self, dim, reduction_factor=256):
+    def __init__(self, dim, reduction_factor=128):
         super(AdapterLayer, self).__init__()
         self.down_proj = nn.Linear(dim, dim // reduction_factor)
         self.up_proj = nn.Linear(dim // reduction_factor, dim)
@@ -59,7 +59,7 @@ class ASTModel(nn.Module):
     def __init__(self, label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, 
                  imagenet_pretrain=True, audioset_pretrain=True, adapter_shared=True, hist_shared=True,
                  model_size='base384', verbose=True, use_adapters=False, adapter_mode='parallel', adapter_location='ffn',
-                 NumBins=16, use_histogram=False, histogram_mode='parallel', histogram_operation='add', histogram_location='ffn'):
+                 NumBins=16,RR=128, use_histogram=False, histogram_mode='parallel', histogram_operation='add', histogram_location='ffn'):
 
         super(ASTModel, self).__init__()
         assert timm.__version__ == '0.4.5', 'Please use timm == 0.4.5, the code might not be compatible with newer versions.'
@@ -147,7 +147,7 @@ class ASTModel(nn.Module):
             
             print(f"\nNumber of transformer blocks: {len(self.v.blocks)}")
             
-            self.reduction_factor = 256
+            self.reduction_factor = RR
             self.use_adapters = use_adapters
             self.adapter_mode = adapter_mode
             self.adapter_location = adapter_location
@@ -155,13 +155,13 @@ class ASTModel(nn.Module):
             if adapter_shared:
                 if self.use_adapters:
                     if self.adapter_location in ['all', 'mhsa_ffn','mhsa_out', 'mhsa']:
-                        shared_adapter_mhsa = AdapterLayer(self.original_embedding_dim)
+                        shared_adapter_mhsa = AdapterLayer(self.original_embedding_dim,self.reduction_factor)
                         self.adapters_mhsa = nn.ModuleList([shared_adapter_mhsa for _ in range(len(self.v.blocks))])
                     if self.adapter_location in ['all', 'mhsa_ffn', 'ffn_out', 'ffn']:
-                        shared_adapter_ffn = AdapterLayer(self.original_embedding_dim)
+                        shared_adapter_ffn = AdapterLayer(self.original_embedding_dim,self.reduction_factor)
                         self.adapters_ffn = nn.ModuleList([shared_adapter_ffn for _ in range(len(self.v.blocks))])
                     if self.adapter_location in ['all', 'mhsa_out', 'ffn_out', 'out']:
-                        shared_adapter_out = AdapterLayer(self.original_embedding_dim)
+                        shared_adapter_out = AdapterLayer(self.original_embedding_dim,self.reduction_factor)
                         self.adapters_out =nn.ModuleList([shared_adapter_out for _ in range(len(self.v.blocks))])        
                             
             
@@ -169,11 +169,11 @@ class ASTModel(nn.Module):
             # Distinct weights:
                 if self.use_adapters:
                     if self.adapter_location in ['all', 'mhsa_ffn','mhsa_out', 'mhsa']:
-                        self.adapters_mhsa = nn.ModuleList([AdapterLayer(self.original_embedding_dim) for _ in range(len(self.v.blocks))])
+                        self.adapters_mhsa = nn.ModuleList([AdapterLayer(self.original_embedding_dim,self.reduction_factor) for _ in range(len(self.v.blocks))])
                     if self.adapter_location in ['all', 'mhsa_ffn', 'ffn_out', 'ffn']:
-                        self.adapters_ffn = nn.ModuleList([AdapterLayer(self.original_embedding_dim) for _ in range(len(self.v.blocks))])
+                        self.adapters_ffn = nn.ModuleList([AdapterLayer(self.original_embedding_dim,self.reduction_factor) for _ in range(len(self.v.blocks))])
                     if self.adapter_location in ['all', 'mhsa_out', 'ffn_out', 'out']:
-                        self.adapters_out = nn.ModuleList([AdapterLayer(self.original_embedding_dim) for _ in range(len(self.v.blocks))])
+                        self.adapters_out = nn.ModuleList([AdapterLayer(self.original_embedding_dim,self.reduction_factor) for _ in range(len(self.v.blocks))])
                            
 
 
@@ -238,7 +238,7 @@ class ASTModel(nn.Module):
                         self.histogram_layers_mhsa = nn.ModuleList([
                             HistogramLayer(in_channels=768,
                                             kernel_size=1, dim=1,
-                                            num_bins=16, stride=1,
+                                            num_bins=NumBins, stride=1,
                                             normalize_count=True, normalize_bins=True) 
                             for _ in range(len(self.v.blocks))  # Create a new instance for each block
                         ])
@@ -252,7 +252,7 @@ class ASTModel(nn.Module):
                         self.histogram_layers_ffn = nn.ModuleList([
                             HistogramLayer(in_channels=768,
                                             kernel_size=1, dim=1,
-                                            num_bins=16, stride=1,
+                                            num_bins=NumBins, stride=1,
                                             normalize_count=True, normalize_bins=True) 
                             for _ in range(len(self.v.blocks))  # Create a new instance for each block
                         ])
@@ -265,7 +265,7 @@ class ASTModel(nn.Module):
                         self.histogram_layers_out = nn.ModuleList([
                             HistogramLayer(in_channels=768,
                                             kernel_size=1, dim=1,
-                                            num_bins=16, stride=1,
+                                            num_bins=NumBins, stride=1,
                                             normalize_count=True, normalize_bins=True) 
                             for _ in range(len(self.v.blocks))  # Create a new instance for each block
                         ])

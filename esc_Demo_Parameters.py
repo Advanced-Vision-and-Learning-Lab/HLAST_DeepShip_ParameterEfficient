@@ -32,6 +32,7 @@ def Parameters(args):
     #respectively, than an error will occur due to attempting to reduce the number of
     #features maps to values less than one
     numBins = args.numBins
+    RR = args.RR
     
     #Flag for feature extraction. False, train whole model. True, only update
     #fully connected and histogram layers parameters (default: False)
@@ -125,7 +126,7 @@ def Parameters(args):
                           'num_workers': num_workers,'lr': lr,'batch_size' : batch_size, 
                           'num_epochs': num_epochs,'normalize_count': normalize_count, 
                           'normalize_bins': normalize_bins,'parallel': parallel,
-                          'numBins': numBins,'Model_name': Model_name, 
+                          'numBins': numBins,'RR': RR,'Model_name': Model_name, 
                           'train_mode': train_mode, 'use_pretrained': use_pretrained,
                           'pin_memory': pin_memory,'Parallelize': Parallelize_model,
                           'feature': feature, 'patience': patience,

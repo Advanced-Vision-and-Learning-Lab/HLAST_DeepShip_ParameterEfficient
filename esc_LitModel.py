@@ -22,14 +22,14 @@ import pdb
 
 class esc_LitModel(L.LightningModule):
 
-    def __init__(self, Params, model_name, num_classes, numBins):
+    def __init__(self, Params, model_name, num_classes, numBins, RR):
         super().__init__()
 
         self.learning_rate = Params['lr']
 
 
         self.model_ft, self.feature_extraction_layer = initialize_model(model_name, num_classes,
-                                                                        numBins,Params['sample_rate'],
+                                                                        numBins,RR,Params['sample_rate'],
                                                                         window_length=Params['window_length'],
                                                                         hop_length=Params['hop_length'],
                                                                         number_mels=Params['number_mels'],
