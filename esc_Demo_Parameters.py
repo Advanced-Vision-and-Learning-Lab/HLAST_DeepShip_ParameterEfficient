@@ -134,6 +134,6 @@ def Parameters(args):
                           'adapter_location': args.adapter_location,
                           'adapter_mode': args.adapter_mode,
                           'histogram_location': args.histogram_location,
-                          'histogram_mode': args.histogram_mode}
+                          'histogram_mode': args.histogram_mode, 'hist_op': args.hist_op}
     return Params
 

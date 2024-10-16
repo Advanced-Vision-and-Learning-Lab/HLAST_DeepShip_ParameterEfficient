@@ -16,8 +16,15 @@ class AdapterLayer(nn.Module):
         super(AdapterLayer, self).__init__()
         self.down_proj = nn.Linear(dim, dim // reduction_factor)
         self.up_proj = nn.Linear(dim // reduction_factor, dim)
-        self.activation = nn.ReLU()
+        #self.activation = nn.ReLU()
+        self.activation = torch.nn.GELU()  
         
+        # Zero initialization
+        nn.init.zeros_(self.down_proj.weight)
+        nn.init.zeros_(self.down_proj.bias)
+        nn.init.zeros_(self.up_proj.weight)
+        nn.init.zeros_(self.up_proj.bias)
+
     def forward(self, x):
         x = self.down_proj(x)
         x = self.activation(x)
@@ -180,7 +187,8 @@ class ASTModel(nn.Module):
             self.use_histogram = use_histogram
             self.histogram_mode = histogram_mode
             self.histogram_location = histogram_location
-
+            self.histogram_operation = histogram_operation
+            
             if hist_shared:
                 # shared weights:
                 if self.use_histogram:
@@ -349,7 +357,24 @@ class ASTModel(nn.Module):
                     hist_features = self.histogram_layers_mhsa[i](x.permute(0, 2, 1)).permute(0, 2, 1)
                     hist_features_flat = hist_features.reshape(B, -1)
                     hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
-                    attn_out = attn_out + hist_features_flat 
+                    
+                    
+                    if self.histogram_operation == 'add':  # Addition
+                        attn_out = attn_out + hist_features_flat 
+                    elif self.histogram_operation == 'multiply':  # Multiplication
+                        attn_out = attn_out * hist_features_flat 
+                                
+                                
+                    #attn_out = attn_out + hist_features_flat 
+
+                elif self.histogram_mode == 'sequential':
+                    attn_out = blk.attn(x)
+                    hist_features = self.histogram_layers_mhsa[i](attn_out.permute(0, 2, 1)).permute(0, 2, 1)
+                    hist_features_flat = hist_features.reshape(B, -1)
+                    hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
+                    attn_out = hist_features_flat  # Sequential applies after attention
+    
+
 
             else:
                 attn_out = blk.attn(x)
@@ -377,6 +402,14 @@ class ASTModel(nn.Module):
                     hist_features_flat = hist_features.reshape(B, -1)
                     hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
                     ffn_out = ffn_out + hist_features_flat
+
+                elif self.histogram_mode == 'sequential':
+                    ffn_out = blk.mlp(x)
+                    hist_features = self.histogram_layers_ffn[i](ffn_out.permute(0, 2, 1)).permute(0, 2, 1)
+                    hist_features_flat = hist_features.reshape(B, -1)
+                    hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
+                    ffn_out = hist_features_flat  # Sequential applies after ffn
+    
 
             else:
                 ffn_out = blk.mlp(x)

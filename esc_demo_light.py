@@ -71,7 +71,7 @@ def main(Params):
     
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
-    numRuns = 3
+    numRuns = 1
     num_classes = 50  
     
     for run_number in range(numRuns):
@@ -200,6 +200,8 @@ def parse_args():
                         help='Location for the histogram layers (default: ffn)')
     parser.add_argument('--histogram_mode', type=str, default='None',
                         help='Mode for the histogram layers (default: parallel)')
+    parser.add_argument('--hist_op', type=str, default='add',
+                        help='how to integrate histogram layers (default: add)')
     args = parser.parse_args()
     return args
 

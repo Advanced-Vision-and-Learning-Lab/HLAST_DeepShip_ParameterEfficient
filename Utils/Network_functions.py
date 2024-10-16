@@ -14,7 +14,7 @@ def initialize_model(model_name, num_classes, numBins,RR, sample_rate=16000,
                      input_feature='STFT', RGB=True,
                      window_length=1024, hop_length=128, number_mels=64,
                      adapter_location='ffn', adapter_mode='parallel', 
-                     histogram_location='ffn', histogram_mode='parallel'):
+                     histogram_location='ffn', histogram_mode='parallel', hist_op='add'):
     
     if model_name == "AST":
         RGB = False    
@@ -34,7 +34,11 @@ def initialize_model(model_name, num_classes, numBins,RR, sample_rate=16000,
     h_mode = histogram
     if h_mode:
         Use_H = True
-        h_operation = 'add'
+        if hist_op == 'multiply':
+            h_operation = 'multiply'
+        else:
+            h_operation = 'add'
+        
     else:
         Use_H = False
         h_operation = None

@@ -9,11 +9,12 @@ import torch
 import torch.nn as nn
 import numpy as np
 import pdb
+from scipy.special import gamma
+
 class HistogramLayer(nn.Module):
     def __init__(self,in_channels,kernel_size,dim=1,num_bins=4,
                   stride=1,padding=0,normalize_count=True,normalize_bins = True,
-                  count_include_pad=False,
-                  ceil_mode=False):
+                  count_include_pad=False, ceil_mode=False, df=3):
 
         # inherit nn.module
         super(HistogramLayer, self).__init__()
@@ -31,6 +32,8 @@ class HistogramLayer(nn.Module):
         self.count_include_pad = count_include_pad
         self.ceil_mode = ceil_mode
         
+        self.df = df  # Degrees of freedom for t-distribution
+        
         #For each data type, apply two 1x1 convolutions, 1) to learn bin center (bias)
         # and 2) to learn bin width
         # Time series/ signal Data
@@ -39,26 +42,19 @@ class HistogramLayer(nn.Module):
             self.bin_centers_conv = nn.Conv1d(self.in_channels,self.numBins,1,
                                             groups=1,bias=True)
             
-            #self.bin_centers_conv = nn.Conv2d(self.in_channels,self.numBins*self.in_channels,1,
-            #                                groups=self.in_channels,bias=True)
             
+            #self.activation = nn.ReLU()  # or 
+            self.activation = nn.GELU()
             
-            # self.bin_centers_conv.weight.data.fill_(1)
-            # self.bin_centers_conv.weight.requires_grad = False
-            
-            #self.bin_widths_conv = nn.Conv2d(self.numBins*self.in_channels,
-            #                                  self.numBins*self.in_channels,1,
-            #                                  groups=self.numBins*self.in_channels,
-            #                                  bias=False)
             
             self.bin_widths_conv = nn.Conv1d(self.numBins,
                                               self.numBins,1,
                                               groups=self.numBins,
                                               bias=False)
-            
-            # self.hist_pool = nn.AvgPool1d(self.filt_dim,stride=self.stride,
-            #                                 padding=self.padding,ceil_mode=self.ceil_mode,
-            #                                 count_include_pad=self.count_include_pad)
+
+
+ 
+
             
             self.hist_pool = nn.AvgPool1d(self.kernel_size,stride=self.stride,
                                               padding=self.padding,ceil_mode=self.ceil_mode,
@@ -67,9 +63,20 @@ class HistogramLayer(nn.Module):
             self.centers = self.bin_centers_conv.bias
             self.widths = self.bin_widths_conv.weight
             
-
+            
+            
+            # Zero initialization
+            nn.init.zeros_(self.bin_centers_conv.weight)
+            nn.init.zeros_(self.bin_centers_conv.bias)
+            nn.init.zeros_(self.bin_widths_conv.weight)
+    
+    
+            # Calculate t-distribution normalization factor
+            #self.t_norm_factor = gamma((self.df + 1) / 2) / (np.sqrt(self.df * np.pi) * gamma(self.df / 2))
+            #self.t_norm_factor = torch.tensor(self.t_norm_factor, dtype=torch.float32)
 
         
+
         # Image Data
         elif self.dim == 2:
             #pdb.set_trace()
@@ -112,14 +119,23 @@ class HistogramLayer(nn.Module):
         #Pass through first convolution to learn bin centers
         xx = self.bin_centers_conv(xx)
         
+        #xx = self.activation(xx)
         
         #Pass through second convolution to learn bin widths
         xx = self.bin_widths_conv(xx)
         
+
+        # Apply t-distribution instead of Gaussian RBF
+        #xx = self.t_norm_factor * (1 + (1/self.df) * xx**2)**(-(self.df+1)/2)
+        # Apply simplified t-distribution
+        #xx = (1 + (1/self.df) * xx**2)**(-(self.df+1)/2)
+
         #Pass through radial basis function
         xx = torch.exp(-(xx**2))
         
         
+        #xx = nn.functional.relu(xx)  # or 
+        #nn.functional.gelu(xx)
         
         #Enforce sum to one constraint
         # Add small positive constant in case sum is zero
@@ -129,8 +145,16 @@ class HistogramLayer(nn.Module):
         #Get localized histogram output, if normalize, average count
         if(self.normalize_count):
             xx = self.hist_pool(xx)
+
+            #xx = self.activation(xx)
+            
         else:
             xx = np.prod(np.asarray(self.hist_pool.kernel_size))*self.hist_pool(xx)
+            
+            #xx = self.activation(xx)
+            
+        xx = nn.functional.gelu(xx) 
+        #xx = nn.functional.relu(xx)
         return xx
         
  
