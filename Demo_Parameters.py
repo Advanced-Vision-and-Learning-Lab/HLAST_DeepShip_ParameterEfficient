@@ -32,7 +32,7 @@ def Parameters(args):
     #respectively, than an error will occur due to attempting to reduce the number of
     #features maps to values less than one
     numBins = args.numBins
-    
+    RR = args.RR
     #Flag for feature extraction. False, train whole model. True, only update
     #fully connected and histogram layers parameters (default: False)
     #Flag to use pretrained model from ImageNet or train from scratch (default: True)
@@ -88,6 +88,7 @@ def Parameters(args):
     Data_dirs = {'DeepShip': './Datasets/DeepShip/Segments/'}
     
     segment_length = {'DeepShip': 5}
+    segment_length = segment_length['DeepShip']
     #sample_rate ={'DeepShip': 32000}
     sample_rate = args.sample_rate
     
@@ -95,42 +96,40 @@ def Parameters(args):
     Model_name = args.model
     
     #Number of classes in each dataset
-    num_classes = {'DeepShip': 4}
+    # num_classes = {'DeepShip': 4}
     
-    #Number of runs and/or splits for each dataset
-    Splits = {'DeepShip': 3}
+    # #Number of runs and/or splits for each dataset
+    # Splits = {'DeepShip': 3}
     
     
-    Dataset = Dataset_names[data_selection]
-    data_dir = Data_dirs[Dataset]
-    segment_length = segment_length[Dataset]
-    #sample_rate = sample_rate[Dataset]
+    # Dataset = Dataset_names[data_selection]
+    # data_dir = Data_dirs[Dataset]
+
+    # #sample_rate = sample_rate[Dataset]
     
     new_dir_p = './Datasets/DeepShip/'
     new_dir = '{}Segments_{}s_{}hz/'.format(new_dir_p,segment_length,sample_rate)
     
     
-    #Save results based on features (can adapt for additional audio datasets or computer vision datasets)
-    if (Dataset=='DeepShip'):
-        audio_features = True
-    else:
-        audio_features = False
+    # #Save results based on features (can adapt for additional audio datasets or computer vision datasets)
+    # if (Dataset=='DeepShip'):
+    #     audio_features = True
+    # else:
+    #     audio_features = False
     
     
-    Hist_model_name = 'Hist{}_{}'.format(Model_name,numBins)
+    # Hist_model_name = 'Hist{}_{}'.format(Model_name,numBins)
     
     #Return dictionary of parameters
     Params = {'histogram': histogram,'histograms_shared': histograms_shared,'adapters_shared': adapters_shared,
-                          'Dataset': Dataset, 'data_dir': data_dir,'segment_length':segment_length,'sample_rate':sample_rate,
-                          'optimizer': optimizer,'new_dir': new_dir,
+                          'sample_rate':sample_rate,'segment_length':segment_length,'new_dir':new_dir, 'optimizer': optimizer,
                           'num_workers': num_workers,'lr': lr,'batch_size' : batch_size, 
                           'num_epochs': num_epochs,'normalize_count': normalize_count, 
                           'normalize_bins': normalize_bins,'parallel': parallel,
-                          'numBins': numBins,'Model_name': Model_name, 'num_classes': num_classes, 
-                          'Splits': Splits, 'train_mode': train_mode,
-                          'hist_model': Hist_model_name, 'use_pretrained': use_pretrained,
+                          'numBins': numBins,'RR': RR,'Model_name': Model_name, 
+                          'train_mode': train_mode, 'use_pretrained': use_pretrained,
                           'pin_memory': pin_memory,'Parallelize': Parallelize_model,
-                          'feature': feature, 'audio_features': audio_features,'patience': patience,
+                          'feature': feature, 'patience': patience,
                           'window_length':window_length,'hop_length':hop_length,'number_mels':number_mels,
                           'adapter_location': args.adapter_location,
                           'adapter_mode': args.adapter_mode,

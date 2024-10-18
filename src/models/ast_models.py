@@ -155,6 +155,7 @@ class ASTModel(nn.Module):
             print(f"\nNumber of transformer blocks: {len(self.v.blocks)}")
             
             self.reduction_factor = RR
+
             self.use_adapters = use_adapters
             self.adapter_mode = adapter_mode
             self.adapter_location = adapter_location

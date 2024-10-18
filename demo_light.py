@@ -38,22 +38,11 @@ def count_trainable_params(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 def main(Params):
-
-    # Name of dataset
-    Dataset = Params['Dataset']
     
-    # Model(s) to be used
     model_name = Params['Model_name']
 
-    # Number of classes in dataset
-    num_classes = Params['num_classes'][Dataset]
-
-    # Number of runs and/or splits for dataset
-    numRuns = Params['Splits'][Dataset]
-
-    # Number of bins and input convolution feature maps after channel-wise pooling
     numBins = Params['numBins']
-
+    RR = Params['RR']
     h_mode = Params['histogram']
     h_shared = Params['histograms_shared']
     a_shared = Params['adapters_shared']
@@ -65,7 +54,7 @@ def main(Params):
     
     run_number = 0
     seed_everything(run_number+1, workers=True)
-        
+    print('segment_length: ',Params['segment_length'])    
     new_dir = Params["new_dir"] 
     process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
     data_module = SSAudioDataModule(new_dir, batch_size=batch_size, sample_rate=Params['sample_rate'])
@@ -74,6 +63,9 @@ def main(Params):
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
     all_test_accs = []
+    numRuns = 3
+    num_classes = 4  
+
     for run_number in range(0, numRuns):
         
         if run_number != 0:
@@ -98,12 +90,10 @@ def main(Params):
         )
 
 
-        model_AST = LitModel(Params, model_name, num_classes, numBins, Dataset)
+        model_AST = LitModel(Params, model_name, num_classes, numBins, RR)
 
         num_params = count_trainable_params(model_AST)
         print(f'Total Trainable Parameters: {num_params}\n')
-        
-        
 
         logger = TensorBoardLogger(
             save_dir=(
@@ -133,7 +123,6 @@ def main(Params):
             Params=Params,
             model_name=model_name,
             num_classes=num_classes,
-            Dataset=Dataset,
             pretrained_loaded=True,
             run_number=run_number
         )
@@ -195,6 +184,8 @@ def parse_args():
                         help='Dataset selection: See Demo_Parameters for full list of datasets')
     parser.add_argument('-numBins', type=int, default=16,
                         help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
+    parser.add_argument('-RR', type=int, default=128,
+                        help='Adapter Reduction Rate (default: 128)')
     parser.add_argument('--train_mode', type=str, default='full_fine_tune',
                         help='full_fine_tune or linear_probing or adapters')
     parser.add_argument('--use_pretrained', default=True, action=argparse.BooleanOptionalAction,
@@ -233,6 +224,8 @@ def parse_args():
                         help='Location for the histogram layers (default: ffn)')
     parser.add_argument('--histogram_mode', type=str, default='None',
                         help='Mode for the histogram layers (default: parallel)')
+    parser.add_argument('--hist_op', type=str, default='add',
+                        help='how to integrate histogram layers (default: add)')
     args = parser.parse_args()
     return args
 

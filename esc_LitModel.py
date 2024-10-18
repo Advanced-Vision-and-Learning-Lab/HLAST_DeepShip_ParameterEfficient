@@ -137,8 +137,8 @@ class esc_LitModel(L.LightningModule):
     
         # Separate the parameters
         optimizer = torch.optim.AdamW([
-            {'params': self.model_ft.mlp_head.parameters(), 'lr': mlp_head_lr, 'weight_decay': 0.1},
-            {'params': [p for n, p in self.named_parameters() if "mlp_head" not in n], 'lr': base_lr, 'weight_decay': 0.1}
+            {'params': self.model_ft.mlp_head.parameters(), 'lr': mlp_head_lr, 'weight_decay': 0.05},
+            {'params': [p for n, p in self.named_parameters() if "mlp_head" not in n], 'lr': base_lr, 'weight_decay': 0.05}
         ])
         
         # Cosine annealing scheduler

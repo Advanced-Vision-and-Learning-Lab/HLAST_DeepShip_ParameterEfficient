@@ -288,7 +288,7 @@ class SSAudioDataModule(L.LightningDataModule):
                         idx, file_path = line.split(': ', 1)
                         # Adjust the file path to include the sampling rate
                         parts = file_path.split('/')
-                        parts[3] = f'Segments_5s_{t_rate}hz'  # Adjust the directory to reflect the target sampling rate
+                        #parts[3] = f'Segments_5s_{t_rate}hz'  # Adjust the directory to reflect the target sampling rate
                         adjusted_file_path = '/'.join(parts)
                         sampling_rate, data = wavfile.read(adjusted_file_path)
                         
@@ -316,12 +316,10 @@ class SSAudioDataModule(L.LightningDataModule):
         self.get_raw_audio_data()
         #self.print_class_distribution()
         
-        
-        #self.global_min, self.global_max = self.get_min_max_train()
-        #self.train_data = self.normalize_data(self.train_data, self.global_min, self.global_max)
-        #self.val_data = self.normalize_data(self.val_data, self.global_min, self.global_max)
-        #self.test_data = self.normalize_data(self.test_data, self.global_min, self.global_max)
-        
+        # self.global_min, self.global_max = self.get_min_max_train()
+        # self.train_data = self.normalize_data(self.train_data, self.global_min, self.global_max)
+        # self.val_data = self.normalize_data(self.val_data, self.global_min, self.global_max)
+        # self.test_data = self.normalize_data(self.test_data, self.global_min, self.global_max)
         
         self.prepared = True
 
@@ -345,10 +343,10 @@ class SSAudioDataModule(L.LightningDataModule):
                 #self.print_class_distribution()
                 
                 
-                #self.global_min, self.global_max = self.get_min_max_train()       
-                #self.train_data = self.normalize_data(self.train_data, self.global_min, self.global_max)
-                #self.val_data = self.normalize_data(self.val_data, self.global_min, self.global_max)
-                #self.test_data = self.normalize_data(self.test_data, self.global_min, self.global_max)
+                # self.global_min, self.global_max = self.get_min_max_train()       
+                # self.train_data = self.normalize_data(self.train_data, self.global_min, self.global_max)
+                # self.val_data = self.normalize_data(self.val_data, self.global_min, self.global_max)
+                # self.test_data = self.normalize_data(self.test_data, self.global_min, self.global_max)
                 
                 
                 self.save_split_indices(split_indices_path)  
@@ -362,12 +360,12 @@ class SSAudioDataModule(L.LightningDataModule):
 
     def train_dataloader(self):
         train_dataset = SSAudioDataset(self.train_data, self.class_to_idx)
-        return DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=16, pin_memory=True)
+        return DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=8, pin_memory=True)
 
     def val_dataloader(self):
         val_dataset = SSAudioDataset(self.val_data, self.class_to_idx)
-        return DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=16, pin_memory=True)
+        return DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=8, pin_memory=True)
 
     def test_dataloader(self):
         test_dataset = SSAudioDataset(self.test_data, self.class_to_idx)
-        return DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=16, pin_memory=True)
+        return DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=8, pin_memory=True)

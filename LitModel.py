@@ -22,14 +22,14 @@ import pdb
 
 class LitModel(L.LightningModule):
 
-    def __init__(self, Params, model_name, num_classes, numBins, Dataset):
+    def __init__(self, Params, model_name, num_classes, numBins, RR):
         super().__init__()
 
         self.learning_rate = Params['lr']
 
 
         self.model_ft, self.feature_extraction_layer = initialize_model(model_name, num_classes,
-                                                                        numBins,Params['sample_rate'],
+                                                                        numBins,RR,Params['sample_rate'],
                                                                         window_length=Params['window_length'],
                                                                         hop_length=Params['hop_length'],
                                                                         number_mels=Params['number_mels'],
@@ -43,7 +43,8 @@ class LitModel(L.LightningModule):
                                                                         adapter_location=Params['adapter_location'],
                                                                         adapter_mode=Params['adapter_mode'],
                                                                         histogram_location=Params['histogram_location'],
-                                                                        histogram_mode=Params['histogram_mode'])
+                                                                        histogram_mode=Params['histogram_mode'],
+                                                                        hist_op=Params['hist_op'])
 
 
 
@@ -150,14 +151,15 @@ class LitModel(L.LightningModule):
     def configure_optimizers(self):
         # Define different learning rates
         base_lr = self.learning_rate  # Learning rate for the rest of the model
-        mlp_head_lr = self.learning_rate * 10  # Higher learning rate for mlp_head 
+        mlp_head_lr = self.learning_rate * 5  # Higher learning rate for mlp_head 
+    
     
         # Separate the parameters
         optimizer = torch.optim.AdamW([
-            {'params': self.model_ft.mlp_head.parameters(), 'lr': mlp_head_lr},  # Higher LR for mlp_head
-            {'params': [p for n, p in self.named_parameters() if "mlp_head" not in n], 'lr': base_lr}  # Base LR for the rest
+            {'params': self.model_ft.mlp_head.parameters(), 'lr': mlp_head_lr, 'weight_decay': 0.05},
+            {'params': [p for n, p in self.named_parameters() if "mlp_head" not in n], 'lr': base_lr, 'weight_decay': 0.05}
         ])
-    
+        
         # Cosine annealing scheduler
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.trainer.max_epochs)
     
