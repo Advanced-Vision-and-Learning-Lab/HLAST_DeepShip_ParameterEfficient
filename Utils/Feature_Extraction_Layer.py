@@ -98,7 +98,7 @@ class Feature_Extraction_Layer(nn.Module):
         x = self.features[self.input_feature](x)
 
         x = x.unsqueeze(1)
-        #pdb.set_trace()
+
         # Apply progressive tokenization
         #x = self.progressive_tokenization(x)
 

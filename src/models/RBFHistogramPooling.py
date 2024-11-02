@@ -10,7 +10,7 @@ import torch.nn as nn
 import numpy as np
 import pdb
 from scipy.special import gamma
-
+import torch.nn.functional as F
 class HistogramLayer(nn.Module):
     def __init__(self,in_channels,kernel_size,dim=1,num_bins=4,
                   stride=1,padding=0,normalize_count=True,normalize_bins = True,
@@ -33,7 +33,9 @@ class HistogramLayer(nn.Module):
         self.ceil_mode = ceil_mode
         
         self.df = df  # Degrees of freedom for t-distribution
-        
+        # Initialize df as a learnable parameter
+        #self.df = nn.Parameter(torch.tensor(float(df)), requires_grad=True)
+
         #For each data type, apply two 1x1 convolutions, 1) to learn bin center (bias)
         # and 2) to learn bin width
         # Time series/ signal Data
@@ -44,7 +46,7 @@ class HistogramLayer(nn.Module):
             
             
             #self.activation = nn.ReLU()  # or 
-            self.activation = nn.GELU()
+            #self.activation = nn.GELU()
             
             
             self.bin_widths_conv = nn.Conv1d(self.numBins,
@@ -53,9 +55,6 @@ class HistogramLayer(nn.Module):
                                               bias=False)
 
 
- 
-
-            
             self.hist_pool = nn.AvgPool1d(self.kernel_size,stride=self.stride,
                                               padding=self.padding,ceil_mode=self.ceil_mode,
                                               count_include_pad=self.count_include_pad)
@@ -69,53 +68,20 @@ class HistogramLayer(nn.Module):
             nn.init.zeros_(self.bin_centers_conv.weight)
             nn.init.zeros_(self.bin_centers_conv.bias)
             nn.init.zeros_(self.bin_widths_conv.weight)
-    
+
     
             # Calculate t-distribution normalization factor
             #self.t_norm_factor = gamma((self.df + 1) / 2) / (np.sqrt(self.df * np.pi) * gamma(self.df / 2))
             #self.t_norm_factor = torch.tensor(self.t_norm_factor, dtype=torch.float32)
 
-        
-
-        # Image Data
-        elif self.dim == 2:
-            #pdb.set_trace()
-            self.bin_centers_conv = nn.Conv2d(self.in_channels,self.numBins*self.in_channels,1,
-                                            groups=self.in_channels,bias=True)
-            self.bin_centers_conv.weight.data.fill_(1)
-            self.bin_centers_conv.weight.requires_grad = False
-            self.bin_widths_conv = nn.Conv2d(self.numBins*self.in_channels,
-                                              self.numBins*self.in_channels,1,
-                                              groups=self.numBins*self.in_channels,
-                                              bias=False)
-            self.hist_pool = nn.AvgPool2d(self.kernel_size,stride=self.stride,
-                                              padding=self.padding,ceil_mode=self.ceil_mode,
-                                              count_include_pad=self.count_include_pad)
-            self.centers = self.bin_centers_conv.bias
-            self.widths = self.bin_widths_conv.weight
-        
-        # Spatial/Temporal or Volumetric Data
-        elif self.dim == 3:
-            self.bin_centers_conv = nn.Conv3d(self.in_channels,self.numBins*self.in_channels,1,
-                                            groups=self.in_channels,bias=True)
-            self.bin_centers_conv.weight.data.fill_(1)
-            self.bin_centers_conv.weight.requires_grad = False
-            self.bin_widths_conv = nn.Conv3d(self.numBins*self.in_channels,
-                                              self.numBins*self.in_channels,1,
-                                              groups=self.numBins*self.in_channels,
-                                              bias=False)
-            self.hist_pool = nn.AvgPool3d(self.filt_dim,stride=self.stride,
-                                              padding=self.padding,ceil_mode=self.ceil_mode,
-                                              count_include_pad=self.count_include_pad)
-            self.centers = self.bin_centers_conv.bias
-            self.widths = self.bin_widths_conv.weight
-            
         else:
             raise RuntimeError('Invalid dimension for histogram layer')
         
         
         
     def forward(self,xx):        
+        
+        pdb.set_trace()
         #Pass through first convolution to learn bin centers
         xx = self.bin_centers_conv(xx)
         
@@ -124,19 +90,15 @@ class HistogramLayer(nn.Module):
         #Pass through second convolution to learn bin widths
         xx = self.bin_widths_conv(xx)
         
+        #xx = self.activation(xx)
 
-        # Apply t-distribution instead of Gaussian RBF
-        #xx = self.t_norm_factor * (1 + (1/self.df) * xx**2)**(-(self.df+1)/2)
-        # Apply simplified t-distribution
+        # Apply t-distribution
         #xx = (1 + (1/self.df) * xx**2)**(-(self.df+1)/2)
 
         #Pass through radial basis function
+        #xx = torch.exp(-nn.functional.gelu(xx)**2)
         xx = torch.exp(-(xx**2))
-        
-        
-        #xx = nn.functional.relu(xx)  # or 
-        #nn.functional.gelu(xx)
-        
+
         #Enforce sum to one constraint
         # Add small positive constant in case sum is zero
         if(self.normalize_bins):
@@ -146,136 +108,52 @@ class HistogramLayer(nn.Module):
         if(self.normalize_count):
             xx = self.hist_pool(xx)
 
-            #xx = self.activation(xx)
-            
         else:
             xx = np.prod(np.asarray(self.hist_pool.kernel_size))*self.hist_pool(xx)
-            
-            #xx = self.activation(xx)
-            
-        xx = nn.functional.gelu(xx) 
-        #xx = nn.functional.relu(xx)
+     
         return xx
         
  
- 
-    # Laplace:
+
+    # def forward(self, xx):
+
+
         
-    # def forward(self, xx):        
+    #     # Compute global feature vector using global average pooling
+    #     global_feature = F.adaptive_avg_pool1d(xx, 1).view(xx.size(0), xx.size(1))
+
+    #     # Normalize both local and global features for cosine similarity calculation
+    #     xx_norm = F.normalize(xx, p=2, dim=1)
+    #     global_feature_norm = F.normalize(global_feature, p=2, dim=1)
+
+    #     # Compute cosine similarity for each position
+    #     cosine_similarity = torch.bmm(xx_norm.permute(0, 2, 1), global_feature_norm.unsqueeze(2)).squeeze(2)
+
     #     # Pass through first convolution to learn bin centers
-    #     xx = self.bin_centers_conv(xx)
-        
+    #     xx_centers = self.bin_centers_conv(xx)
+
     #     # Pass through second convolution to learn bin widths
-    #     xx = self.bin_widths_conv(xx)
-        
-    #     # Apply Laplace basis function
-    #     # Ensure that widths are positive and add a small constant to avoid division by zero
-    #     widths_positive = torch.abs(self.widths) + 1e-6
+    #     xx_widths = self.bin_widths_conv(xx_centers)
 
-    #     # xx = torch.exp(-torch.abs(xx) / widths_positive)
-        
-        
-    #     # Reshape widths_positive to be broadcastable to xx's shape
-    #     # Assuming widths_positive needs to match the numBins*in_channels dimension
-    #     widths_positive = widths_positive.view(1, -1, 1)  # Reshape to [1, numBins*in_channels, 1] for broadcasting
-        
-    #     # Apply Laplace basis function
-    #     xx = torch.exp(-torch.abs(xx) / widths_positive)
-    
+    #     # Apply cosine similarity as a weight to modify the binning process
+    #     xx_weighted = xx_widths * cosine_similarity.unsqueeze(1)
 
+    #     # Apply radial basis function (RBF) or Gaussian-like transformation
+    #     xx_rbf = torch.exp(-(xx_weighted**2))
+
+    #     #Enforce sum to one constraint
+    #     # Add small positive constant in case sum is zero
+    #     if(self.normalize_bins):
+    #         xx_rbf = self.constrain_bins(xx_rbf)
         
-    #     # Enforce sum to one constraint
-    #     # Add a small positive constant in case the sum is zero
-    #     if self.normalize_bins:
-    #         xx = self.constrain_bins(xx)
-        
-    #     # Get localized histogram output, if normalize, average count
-    #     if self.normalize_count:
-    #         xx = self.hist_pool(xx)
+    #     #Get localized histogram output, if normalize, average count
+    #     if(self.normalize_count):
+    #         xx_rbf = self.hist_pool(xx_rbf)
+
     #     else:
-    #         xx = np.prod(np.asarray(self.hist_pool.kernel_size)) * self.hist_pool(xx)
-    
-    
-    #     return xx
-   
-
- 
-
-# Triangular:
-    
-# import torch
-# import torch.nn as nn
-# import numpy as np
-
-# class HistogramLayer(nn.Module):
-#     def __init__(self, in_channels, kernel_size, dim=1, num_bins=4,
-#                  stride=1, padding=0, normalize_count=True, normalize_bins=True,
-#                  count_include_pad=False, ceil_mode=False):
-#         super(HistogramLayer, self).__init__()
-
-#         self.in_channels = in_channels
-#         self.numBins = num_bins
-#         self.stride = stride
-#         self.kernel_size = kernel_size
-#         self.dim = dim
-#         self.padding = padding
-#         self.normalize_count = normalize_count
-#         self.normalize_bins = normalize_bins
-#         self.count_include_pad = count_include_pad
-#         self.ceil_mode = ceil_mode
-        
-#         if self.dim == 1:
-#             self.bin_centers_conv = nn.Conv1d(self.in_channels, self.numBins*self.in_channels, 1,
-#                                                groups=self.in_channels, bias=True)
-#             self.bin_centers_conv.weight.data.fill_(1)
-#             self.bin_centers_conv.weight.requires_grad = False
-#             self.bin_widths_conv = nn.Conv1d(self.numBins*self.in_channels,
-#                                              self.numBins*self.in_channels, 1,
-#                                              groups=self.numBins*self.in_channels, bias=False)
-#             self.hist_pool = nn.AvgPool1d(self.kernel_size, stride=self.stride,
-#                                           padding=self.padding, ceil_mode=self.ceil_mode,
-#                                           count_include_pad=self.count_include_pad)
-#             self.centers = self.bin_centers_conv.bias
-#             self.widths = self.bin_widths_conv.weight
-
-#     def constrain_bins(self, xx):
-#         if self.dim == 1:
-#             n, c, l = xx.size()
-#             xx_sum = xx.reshape(n, c // self.numBins, self.numBins, l).sum(2) + torch.tensor(10e-6)
-#             xx_sum = torch.repeat_interleave(xx_sum, self.numBins, dim=1)
-#             xx = xx / xx_sum
-#         return xx
-
-#     def forward(self, xx):
-#         # Learn bin centers
-#         xx = self.bin_centers_conv(xx)
-        
-#         # Ensure positive widths and reshape for broadcasting
-#         widths_positive = torch.abs(self.widths) + 1e-6
-#         widths_positive = widths_positive.view(1, -1, 1)  # Ensure it's broadcastable over the batch and spatial dimensions
-        
-#         # Calculate distances to bin centers
-#         # Need to ensure centers are correctly broadcastable as well
-#         centers_broadcastable = self.centers.view(1, -1, 1)
-#         distances = torch.abs(xx - centers_broadcastable)
-        
-#         # Apply triangular function
-#         # Triangular contribution is max(0, (1 - (distance / width)))
-#         xx_triangular = 1 - (distances / widths_positive)
-#         xx_triangular = torch.maximum(torch.tensor(0.0), xx_triangular)
-        
-#         # Normalize bin contributions if needed
-#         if self.normalize_bins:
-#             xx_triangular = self.constrain_bins(xx_triangular)
-        
-#         # Get localized histogram output
-#         if self.normalize_count:
-#             xx_triangular = self.hist_pool(xx_triangular)
-#         else:
-#             xx_triangular = np.prod(np.asarray(self.hist_pool.kernel_size)) * self.hist_pool(xx_triangular)
-        
-#         return xx_triangular
-
+    #         xx_rbf = np.prod(np.asarray(self.hist_pool.kernel_size))*self.hist_pool(xx_rbf)
+     
+    #     return xx_rbf 
 
     
     

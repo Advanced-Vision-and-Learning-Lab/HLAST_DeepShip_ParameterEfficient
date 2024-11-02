@@ -34,6 +34,9 @@ np.bool = bool  # module 'numpy' has no attribute 'bool'
 from SSDataModule import SSAudioDataModule
 from LitModel import LitModel
 
+from datamodule_shipsear import ShipsEarDataModule
+from preprocess_shipsear import preprocess_dataset
+
 def count_trainable_params(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
@@ -56,15 +59,27 @@ def main(Params):
     seed_everything(run_number+1, workers=True)
     print('segment_length: ',Params['segment_length'])    
     new_dir = Params["new_dir"] 
-    process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
-    data_module = SSAudioDataModule(new_dir, batch_size=batch_size, sample_rate=Params['sample_rate'])
-    data_module.prepare_data()
+    
+    
+    #DEEPSHIP#
+    #process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
+    #data_module = SSAudioDataModule(new_dir, batch_size=batch_size, sample_rate=Params['sample_rate'])
+    #data_module.prepare_data()
+    #num_classes = 4 
+    
+    
+    #SHIPSEAR#
+    input_directory = 'shipsEar'  # Path to your original dataset with folders containing .wav files
+    output_directory = 'processed_shipsEar'  # Path where processed/segmented files will be saved
+    preprocess_dataset(input_directory, output_directory)
+    data_module = ShipsEarDataModule(data_dir='processed_shipsEar', batch_size=64)
+    num_classes = 5
+    
     
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
     all_test_accs = []
     numRuns = 3
-    num_classes = 4  
 
     for run_number in range(0, numRuns):
         
@@ -110,6 +125,7 @@ def main(Params):
             callbacks=[early_stopping_callback, checkpoint_callback],
             deterministic=False,
             logger=logger,
+            log_every_n_steps=20
         )
 
         trainer.fit(model=model_AST, datamodule=data_module)

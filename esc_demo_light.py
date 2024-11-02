@@ -71,7 +71,7 @@ def main(Params):
     
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
-    numRuns = 1
+    numRuns = 3
     num_classes = 50  
     
     for run_number in range(numRuns):

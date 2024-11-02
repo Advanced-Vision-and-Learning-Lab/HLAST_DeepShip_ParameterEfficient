@@ -316,10 +316,10 @@ class SSAudioDataModule(L.LightningDataModule):
         self.get_raw_audio_data()
         #self.print_class_distribution()
         
-        # self.global_min, self.global_max = self.get_min_max_train()
-        # self.train_data = self.normalize_data(self.train_data, self.global_min, self.global_max)
-        # self.val_data = self.normalize_data(self.val_data, self.global_min, self.global_max)
-        # self.test_data = self.normalize_data(self.test_data, self.global_min, self.global_max)
+        self.global_min, self.global_max = self.get_min_max_train()
+        self.train_data = self.normalize_data(self.train_data, self.global_min, self.global_max)
+        self.val_data = self.normalize_data(self.val_data, self.global_min, self.global_max)
+        self.test_data = self.normalize_data(self.test_data, self.global_min, self.global_max)
         
         self.prepared = True
 
@@ -343,10 +343,10 @@ class SSAudioDataModule(L.LightningDataModule):
                 #self.print_class_distribution()
                 
                 
-                # self.global_min, self.global_max = self.get_min_max_train()       
-                # self.train_data = self.normalize_data(self.train_data, self.global_min, self.global_max)
-                # self.val_data = self.normalize_data(self.val_data, self.global_min, self.global_max)
-                # self.test_data = self.normalize_data(self.test_data, self.global_min, self.global_max)
+                self.global_min, self.global_max = self.get_min_max_train()       
+                self.train_data = self.normalize_data(self.train_data, self.global_min, self.global_max)
+                self.val_data = self.normalize_data(self.val_data, self.global_min, self.global_max)
+                self.test_data = self.normalize_data(self.test_data, self.global_min, self.global_max)
                 
                 
                 self.save_split_indices(split_indices_path)  
