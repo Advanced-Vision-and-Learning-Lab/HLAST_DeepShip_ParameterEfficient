@@ -87,7 +87,7 @@ def Parameters(args):
     #Location of texture datasets
     Data_dirs = {'DeepShip': './Datasets/DeepShip/Segments/'}
     
-    segment_length = {'DeepShip': 30}
+    segment_length = {'DeepShip': 5}
     segment_length = segment_length['DeepShip']
     #sample_rate ={'DeepShip': 32000}
     sample_rate = args.sample_rate

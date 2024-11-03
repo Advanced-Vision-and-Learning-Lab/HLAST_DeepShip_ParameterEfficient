@@ -62,18 +62,18 @@ def main(Params):
     
     
     #DEEPSHIP#
-    #process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
-    #data_module = SSAudioDataModule(new_dir, batch_size=batch_size, sample_rate=Params['sample_rate'])
-    #data_module.prepare_data()
-    #num_classes = 4 
+    process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
+    data_module = SSAudioDataModule(new_dir, batch_size=batch_size, sample_rate=Params['sample_rate'])
+    data_module.prepare_data()
+    num_classes = 4 
     
     
     #SHIPSEAR#
-    input_directory = 'shipsEar'  # Path to your original dataset with folders containing .wav files
-    output_directory = 'processed_shipsEar'  # Path where processed/segmented files will be saved
-    preprocess_dataset(input_directory, output_directory)
-    data_module = ShipsEarDataModule(data_dir='processed_shipsEar', batch_size=64)
-    num_classes = 5
+    #input_directory = 'shipsEar'  # Path to your original dataset with folders containing .wav files
+    #output_directory = 'processed_shipsEar'  # Path where processed/segmented files will be saved
+    #preprocess_dataset(input_directory, output_directory)
+    #data_module = ShipsEarDataModule(data_dir='processed_shipsEar', batch_size=64)
+    #num_classes = 5
     
     
     torch.set_float32_matmul_precision('medium')
@@ -125,7 +125,9 @@ def main(Params):
             callbacks=[early_stopping_callback, checkpoint_callback],
             deterministic=False,
             logger=logger,
-            log_every_n_steps=20
+            log_every_n_steps=20,
+            accelerator='gpu',  # Specifies that you're using GPUs
+    	    devices=1,          # Number of GPUs 
         )
 
         trainer.fit(model=model_AST, datamodule=data_module)

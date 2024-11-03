@@ -81,7 +81,7 @@ class HistogramLayer(nn.Module):
         
     def forward(self,xx):        
         
-        pdb.set_trace()
+
         #Pass through first convolution to learn bin centers
         xx = self.bin_centers_conv(xx)
         

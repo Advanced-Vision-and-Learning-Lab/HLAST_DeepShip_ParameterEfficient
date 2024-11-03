@@ -161,7 +161,7 @@ class LitModel(L.LightningModule):
         ])
         
         # Cosine annealing scheduler
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.trainer.max_epochs)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1,int(self.trainer.max_epochs * 0.2)))
     
         return [optimizer], [scheduler]
 
