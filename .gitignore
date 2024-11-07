@@ -8,8 +8,8 @@ pretrained_models/
 esc50_data/
 esc50_data_resampled/
 features/
-shipsEar/
-processed_shipsEar/
+ShipsEar/
+VTUAD/
 
 # Ignore specific large files
 

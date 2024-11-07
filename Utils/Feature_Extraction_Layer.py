@@ -56,7 +56,7 @@ class Feature_Extraction_Layer(nn.Module):
     
     def calculate_output_dims(self):
         try:
-            length_in_seconds = 5  
+            length_in_seconds = 1  
             samples = int(self.sample_rate * length_in_seconds)
             dummy_input = torch.randn(1, samples)  
             with torch.no_grad():

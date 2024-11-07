@@ -1,3 +1,0 @@
-linear_probing MAD: 668.0173, STD: 343.6342
-histogram MAD: 3504.1813, STD: 4870.3043
-adapters MAD: 1889.6513, STD: 2032.9884

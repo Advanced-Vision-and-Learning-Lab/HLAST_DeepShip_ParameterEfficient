@@ -36,16 +36,16 @@ class MelSpectrogramExtractor(nn.Module):
             freq_drop_width=16, freq_stripes_num=2)
 
         
-        self.bn0 = nn.BatchNorm2d(t_n)
+        #self.bn0 = nn.BatchNorm2d(t_n)
 
     def forward(self, waveform):
 
         spectrogram = self.spectrogram_extractor(waveform)
         log_mel_spectrogram = self.logmel_extractor(spectrogram)
 
-        log_mel_spectrogram = log_mel_spectrogram.transpose(1, 3)
-        log_mel_spectrogram = self.bn0(log_mel_spectrogram)
-        log_mel_spectrogram = log_mel_spectrogram.transpose(1, 3)
+        # log_mel_spectrogram = log_mel_spectrogram.transpose(1, 3)
+        # log_mel_spectrogram = self.bn0(log_mel_spectrogram)
+        # log_mel_spectrogram = log_mel_spectrogram.transpose(1, 3)
         
         # if self.training:
         #     log_mel_spectrogram = self.spec_augmenter(log_mel_spectrogram)

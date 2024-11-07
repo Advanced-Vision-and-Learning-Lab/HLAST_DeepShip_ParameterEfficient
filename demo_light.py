@@ -34,8 +34,10 @@ np.bool = bool  # module 'numpy' has no attribute 'bool'
 from SSDataModule import SSAudioDataModule
 from LitModel import LitModel
 
-from datamodule_shipsear import ShipsEarDataModule
-from preprocess_shipsear import preprocess_dataset
+from ShipsEar_dataloader import ShipsEarDataModule
+from ShipsEar_Data_Preprocessing import Generate_Segments
+
+from VTUAD_DataModule import AudioDataModule
 
 def count_trainable_params(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -57,24 +59,28 @@ def main(Params):
     
     run_number = 0
     seed_everything(run_number+1, workers=True)
-    print('segment_length: ',Params['segment_length'])    
     new_dir = Params["new_dir"] 
     
-    
     #DEEPSHIP#
-    process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
-    data_module = SSAudioDataModule(new_dir, batch_size=batch_size, sample_rate=Params['sample_rate'])
-    data_module.prepare_data()
-    num_classes = 4 
+    #process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
+    #data_module = SSAudioDataModule(new_dir, batch_size=batch_size, sample_rate=Params['sample_rate'])
+    #data_module.prepare_data()
+    #num_classes = 4 
     
     
     #SHIPSEAR#
-    #input_directory = 'shipsEar'  # Path to your original dataset with folders containing .wav files
-    #output_directory = 'processed_shipsEar'  # Path where processed/segmented files will be saved
-    #preprocess_dataset(input_directory, output_directory)
-    #data_module = ShipsEarDataModule(data_dir='processed_shipsEar', batch_size=64)
-    #num_classes = 5
-    
+    # dataset_dir = './ShipsEar/'
+    # Generate_Segments(dataset_dir,target_sr=16000,segment_length=5)
+    # data_module = ShipsEarDataModule(parent_folder='./ShipsEar')
+    # num_classes = 5
+
+    #VTUAD#
+    base_dir = 'VTUAD'
+    # Select one of the scenarios inclusion_2000_exclusion_4000, 
+    # inclusion_3000_exclusion_5000, inclusion_4000_exclusion_6000, combined_scenario
+    scenario_name = 'inclusion_2000_exclusion_4000'
+    data_module = AudioDataModule(base_dir=base_dir, scenario_name=scenario_name, batch_size=32)
+    num_classes = 5
     
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
@@ -113,7 +119,7 @@ def main(Params):
         logger = TensorBoardLogger(
             save_dir=(
                 f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-                f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+                f"_AdaptShared{a_shared}_{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
                 f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run_number}"
             ),
             name="metrics"
@@ -153,7 +159,7 @@ def main(Params):
     
         results_filename = (
         f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-        f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+        f"_AdaptShared{a_shared}_{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
         f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run_number}/metrics.txt"
         )
 
@@ -172,7 +178,7 @@ def main(Params):
     
     summary_filename = (
         f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-        f"_AdaptShared{a_shared}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+        f"_AdaptShared{a_shared}_{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
         f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/summary_metrics.txt"
     )
 

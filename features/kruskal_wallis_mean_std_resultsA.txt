@@ -1,3 +1,0 @@
-linear_probing Mean: 969.5793, STD: 2567.3242
-histogram Mean: 1500.3746, STD: 4052.4143
-adapters Mean: 8833.0817, STD: 13013.2815

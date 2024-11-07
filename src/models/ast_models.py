@@ -16,8 +16,8 @@ class AdapterLayer(nn.Module):
         super(AdapterLayer, self).__init__()
         self.down_proj = nn.Linear(dim, dim // reduction_factor)
         self.up_proj = nn.Linear(dim // reduction_factor, dim)
-        self.activation = nn.ReLU()
-        #self.activation = torch.nn.GELU()  
+        #self.activation = nn.ReLU()
+        self.activation = torch.nn.GELU()  
         
         # Zero initialization
         nn.init.zeros_(self.down_proj.weight)

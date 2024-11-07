@@ -139,34 +139,41 @@ class LitModel(L.LightningModule):
     
     
     
-    # def configure_optimizers(self):
-    #     # AdamW optimizer
-    #     optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
-        
-    #     # Cosine annealing scheduler
-    #     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.trainer.max_epochs)
-    
-    #     return [optimizer], [scheduler]
-    
-    def configure_optimizers(self):
+    #def configure_optimizers(self):
         # Define different learning rates
-        base_lr = self.learning_rate  # Learning rate for the rest of the model
-        mlp_head_lr = self.learning_rate * 5  # Higher learning rate for mlp_head 
+        
+	# Learning rate for the rest of the model
+        
+        #mlp_head_lr = self.learning_rate * 2  # Higher learning rate for mlp_head 
     
-    
+    #	base_lr = self.learning_rate 
+	
+    #	optimizer = torch.optim.AdamW(self.parameters(), lr=base_lr)
         # Separate the parameters
-        optimizer = torch.optim.AdamW([
-            {'params': self.model_ft.mlp_head.parameters(), 'lr': mlp_head_lr, 'weight_decay': 0.05},
-            {'params': [p for n, p in self.named_parameters() if "mlp_head" not in n], 'lr': base_lr, 'weight_decay': 0.05}
-        ])
+        #optimizer = torch.optim.AdamW([
+        #    {'params': self.model_ft.mlp_head.parameters(), 'lr': mlp_head_lr, 'weight_decay': 0.05},
+        #    {'params': [p for n, p in self.named_parameters() if "mlp_head" not in n], 'lr': base_lr, 'weight_decay': 0.05}
+        #])
         
         # Cosine annealing scheduler
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1,int(self.trainer.max_epochs * 0.2)))
+        #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1,int(self.trainer.max_epochs * 0.1)))
     
-        return [optimizer], [scheduler]
+    
+     #   return optimizer
+        #return [optimizer], [scheduler]
+        
+        
+    def configure_optimizers(self):
+    # Define a single learning rate for all parameters
+        base_lr = self.learning_rate  # One learning rate for the entire model
+
+    # Use AdamW optimizer for all model parameters with the specified learning rate
+        optimizer = torch.optim.AdamW(self.parameters(), lr=base_lr, weight_decay=0.1)
+
+        return optimizer
 
 
-
+	    
                 
     def get_histogram_parameters(self):
         params = []
