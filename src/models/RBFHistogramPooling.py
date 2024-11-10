@@ -65,23 +65,38 @@ class HistogramLayer(nn.Module):
             
             
             # Zero initialization
-            nn.init.zeros_(self.bin_centers_conv.weight)
-            nn.init.zeros_(self.bin_centers_conv.bias)
-            nn.init.zeros_(self.bin_widths_conv.weight)
+            #nn.init.zeros_(self.bin_centers_conv.weight)
+            #nn.init.zeros_(self.bin_centers_conv.bias)
+            #nn.init.zeros_(self.bin_widths_conv.weight)
 
     
             # Calculate t-distribution normalization factor
             #self.t_norm_factor = gamma((self.df + 1) / 2) / (np.sqrt(self.df * np.pi) * gamma(self.df / 2))
             #self.t_norm_factor = torch.tensor(self.t_norm_factor, dtype=torch.float32)
 
+
+            # Initialize bins equally spaced
+            #self.initialize_bins()
         else:
             raise RuntimeError('Invalid dimension for histogram layer')
+
+    # def initialize_bins(self):
+    #     # Estimate data range (you may need to adjust this based on your data)
+    #     min_val, max_val = -1.0, 1.0  # Assuming normalized input data
+
+    #     # Initialize bin centers
+    #     bin_centers = torch.linspace(min_val, max_val, self.numBins)
+    #     self.bin_centers_conv.bias.data = bin_centers
+
+    #     # Initialize bin widths
+    #     bin_width = (max_val - min_val) / (self.numBins - 1)
+    #     self.bin_widths_conv.weight.data.fill_(1.0 / bin_width)
         
         
         
     def forward(self,xx):        
         
-
+        #pdb.set_trace()
         #Pass through first convolution to learn bin centers
         xx = self.bin_centers_conv(xx)
         
@@ -91,7 +106,7 @@ class HistogramLayer(nn.Module):
         xx = self.bin_widths_conv(xx)
         
         #xx = self.activation(xx)
-
+        
         # Apply t-distribution
         #xx = (1 + (1/self.df) * xx**2)**(-(self.df+1)/2)
 

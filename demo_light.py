@@ -24,13 +24,6 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 
 from Datasets.Get_preprocessed_data import process_data
 
-# This code uses a newer version of numpy while other packages use an older version of numpy
-# This is a simple workaround to avoid errors that arise from the deprecation of numpy data types
-np.float = float  # module 'numpy' has no attribute 'float'
-np.int = int  # module 'numpy' has no attribute 'int'
-np.object = object  # module 'numpy' has no attribute 'object'
-np.bool = bool  # module 'numpy' has no attribute 'bool'
-
 from SSDataModule import SSAudioDataModule
 from LitModel import LitModel
 
@@ -38,6 +31,13 @@ from ShipsEar_dataloader import ShipsEarDataModule
 from ShipsEar_Data_Preprocessing import Generate_Segments
 
 from VTUAD_DataModule import AudioDataModule
+
+# # This code uses a newer version of numpy while other packages use an older version of numpy
+# # This is a simple workaround to avoid errors that arise from the deprecation of numpy data types
+# np.float = float  # module 'numpy' has no attribute 'float'
+# np.int = int  # module 'numpy' has no attribute 'int'
+# np.object = object  # module 'numpy' has no attribute 'object'
+# np.bool = bool  # module 'numpy' has no attribute 'bool'
 
 def count_trainable_params(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -48,44 +48,41 @@ def main(Params):
 
     numBins = Params['numBins']
     RR = Params['RR']
-    h_mode = Params['histogram']
     h_shared = Params['histograms_shared']
     a_shared = Params['adapters_shared']
     
     batch_size = Params['batch_size']
     batch_size = batch_size['train']
 
-    print('\n\n\nStarting Experiments...')
+    print('\nStarting Experiments...')
     
     run_number = 0
     seed_everything(run_number+1, workers=True)
     new_dir = Params["new_dir"] 
     
-    #DEEPSHIP#
-    #process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
-    #data_module = SSAudioDataModule(new_dir, batch_size=batch_size, sample_rate=Params['sample_rate'])
-    #data_module.prepare_data()
-    #num_classes = 4 
-    
-    
-    #SHIPSEAR#
-    # dataset_dir = './ShipsEar/'
-    # Generate_Segments(dataset_dir,target_sr=16000,segment_length=5)
-    # data_module = ShipsEarDataModule(parent_folder='./ShipsEar')
-    # num_classes = 5
+    if Params['data_selection'] == 0:
+        process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
+        data_module = SSAudioDataModule(new_dir, batch_size=batch_size, sample_rate=Params['sample_rate'])
+        data_module.prepare_data()
+        num_classes = 4
+    elif Params['data_selection'] == 1:
+        dataset_dir = './ShipsEar/'
+        Generate_Segments(dataset_dir, target_sr=16000, segment_length=5)
+        data_module = ShipsEarDataModule(parent_folder='./ShipsEar',batch_size=batch_size)
+        num_classes = 5
+    elif Params['data_selection'] == 2:
+        base_dir = 'VTUAD'
+        scenario_name = 'combined_scenario'
+        data_module = AudioDataModule(base_dir=base_dir, scenario_name=scenario_name, batch_size=batch_size)
+        num_classes = 5
+    else:
+        raise ValueError('Invalid data selection: must be 0, 1, or 2')
 
-    #VTUAD#
-    base_dir = 'VTUAD'
-    # Select one of the scenarios inclusion_2000_exclusion_4000, 
-    # inclusion_3000_exclusion_5000, inclusion_4000_exclusion_6000, combined_scenario
-    scenario_name = 'inclusion_2000_exclusion_4000'
-    data_module = AudioDataModule(base_dir=base_dir, scenario_name=scenario_name, batch_size=32)
-    num_classes = 5
     
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
     all_test_accs = []
-    numRuns = 3
+    numRuns = 1
 
     for run_number in range(0, numRuns):
         
@@ -114,12 +111,12 @@ def main(Params):
         model_AST = LitModel(Params, model_name, num_classes, numBins, RR)
 
         num_params = count_trainable_params(model_AST)
-        print(f'Total Trainable Parameters: {num_params}\n')
+        print(f'Total Trainable Parameters: {num_params}')
 
         logger = TensorBoardLogger(
             save_dir=(
                 f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-                f"_AdaptShared{a_shared}_{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+                f"_AdaptShared{a_shared}_{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
                 f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run_number}"
             ),
             name="metrics"
@@ -136,7 +133,8 @@ def main(Params):
     	    devices=1,          # Number of GPUs 
         )
 
-        trainer.fit(model=model_AST, datamodule=data_module)
+        trainer.fit(model=model_AST, datamodule=data_module) 
+    
     
         best_val_acc = checkpoint_callback.best_model_score.item()
         all_val_accs.append(best_val_acc)
@@ -159,7 +157,7 @@ def main(Params):
     
         results_filename = (
         f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-        f"_AdaptShared{a_shared}_{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+        f"_AdaptShared{a_shared}_{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
         f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run_number}/metrics.txt"
         )
 
@@ -178,7 +176,7 @@ def main(Params):
     
     summary_filename = (
         f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-        f"_AdaptShared{a_shared}_{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Hist{h_mode}Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+        f"_AdaptShared{a_shared}_{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
         f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/summary_metrics.txt"
     )
 
@@ -198,20 +196,18 @@ def parse_args():
         description='Run histogram experiments')
     parser.add_argument('--model', type=str, default='AST',
                         help='Select baseline model architecture')
-    parser.add_argument('--histogram', default=False, action=argparse.BooleanOptionalAction,
-                        help='Flag to use --no-histogram or --histogram')
     parser.add_argument('--histograms_shared', default=True, action=argparse.BooleanOptionalAction,
                         help='Flag to use histogram shared')
     parser.add_argument('--adapters_shared', default=True, action=argparse.BooleanOptionalAction,
                         help='Flag to use adapter shared')
-    parser.add_argument('--data_selection', type=int, default=0,
+    parser.add_argument('--data_selection', type=int, default=1,
                         help='Dataset selection: See Demo_Parameters for full list of datasets')
     parser.add_argument('-numBins', type=int, default=16,
                         help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
     parser.add_argument('-RR', type=int, default=128,
                         help='Adapter Reduction Rate (default: 128)')
     parser.add_argument('--train_mode', type=str, default='full_fine_tune',
-                        help='full_fine_tune or linear_probing or adapters')
+                        help='full_fine_tune or linear_probing or adapters or histogram')
     parser.add_argument('--use_pretrained', default=True, action=argparse.BooleanOptionalAction,
                         help='Flag to use pretrained model or train from scratch (default: True)')
     parser.add_argument('--train_batch_size', type=int, default=64,
@@ -224,8 +220,6 @@ def parse_args():
                         help='Number of epochs to train each model for (default: 50)')
     parser.add_argument('--lr', type=float, default=1e-5,
                         help='learning rate (default: 0.001)')
-    parser.add_argument('--use-cuda', default=True, action=argparse.BooleanOptionalAction,
-                        help='enables CUDA training')
     parser.add_argument('--audio_feature', type=str, default='LogMelFBank',
                         help='Audio feature for extraction')
     parser.add_argument('--optimizer', type=str, default='Adam',
@@ -240,6 +234,8 @@ def parse_args():
                         help='number of mels')
     parser.add_argument('--sample_rate', type=int, default=16000,
                         help='Dataset Sample Rate'),
+    parser.add_argument('--segment_length', type=int, default=5,
+                        help='Dataset Segment Length'),
     parser.add_argument('--adapter_location', type=str, default='None',
                         help='Location for the adapter layers (default: ffn)')
     parser.add_argument('--adapter_mode', type=str, default='None',
@@ -248,8 +244,6 @@ def parse_args():
                         help='Location for the histogram layers (default: ffn)')
     parser.add_argument('--histogram_mode', type=str, default='None',
                         help='Mode for the histogram layers (default: parallel)')
-    parser.add_argument('--hist_op', type=str, default='add',
-                        help='how to integrate histogram layers (default: add)')
     args = parser.parse_args()
     return args
 

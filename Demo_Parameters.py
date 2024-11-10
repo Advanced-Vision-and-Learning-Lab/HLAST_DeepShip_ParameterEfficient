@@ -15,13 +15,12 @@ def Parameters(args):
     
     #Flag to use histogram model or baseline global average pooling (GAP)
     # Set to True to use histogram layer and False to use GAP model
-    histogram = args.histogram
     histograms_shared = args.histograms_shared
     adapters_shared = args.adapters_shared
     
     #Select dataset. Set to number of desired dataset
     data_selection = args.data_selection
-    Dataset_names = {0: 'DeepShip'}
+    Dataset_names = {0: 'DeepShip', 1: 'ShipsEar', 2: 'VTUAD'}
     
     #Number of bins for histogram layer. Recommended values are 4, 8 and 16.
     #Set number of bins to powers of 2 (e.g., 2, 4, 8, etc.)
@@ -53,7 +52,6 @@ def Parameters(args):
     normalize_count = True
     normalize_bins = True
     
-    
     #Batch size for training and epochs. If running experiments on single GPU (e.g., 2080ti),
     #training batch size is recommended to be 64. If using at least two GPUs,
     #the recommended training batch size is 128 (as done in paper)
@@ -74,7 +72,7 @@ def Parameters(args):
     #Set number of workers, i.e., how many subprocesses to use for data loading.
     #Usually set to 0 or 1. Can set to more if multiple machines are used.
     #Number of workers for experiments for two GPUs was three
-    num_workers = 16
+    num_workers = 8
     
     #Select audio feature for DeepShip 
     feature = args.audio_feature
@@ -82,16 +80,11 @@ def Parameters(args):
     #Set to True if more than one GPU was used
     Parallelize_model = True
 
-    
-    ######## ONLY CHANGE PARAMETERS ABOVE ########
-    #Location of texture datasets
-    Data_dirs = {'DeepShip': './Datasets/DeepShip/Segments/'}
-    
-    segment_length = {'DeepShip': 5}
-    segment_length = segment_length['DeepShip']
+    segment_length = args.segment_length
+
     #sample_rate ={'DeepShip': 32000}
     sample_rate = args.sample_rate
-    
+
     #ResNet models to use for each dataset
     Model_name = args.model
     
@@ -101,39 +94,25 @@ def Parameters(args):
     # #Number of runs and/or splits for each dataset
     # Splits = {'DeepShip': 3}
     
-    
     # Dataset = Dataset_names[data_selection]
     # data_dir = Data_dirs[Dataset]
 
-    # #sample_rate = sample_rate[Dataset]
     
     new_dir_p = './Datasets/DeepShip/'
     new_dir = '{}Segments_{}s_{}hz/'.format(new_dir_p,segment_length,sample_rate)
     
-    
-    # #Save results based on features (can adapt for additional audio datasets or computer vision datasets)
-    # if (Dataset=='DeepShip'):
-    #     audio_features = True
-    # else:
-    #     audio_features = False
-    
-    
-    # Hist_model_name = 'Hist{}_{}'.format(Model_name,numBins)
-    
     #Return dictionary of parameters
-    Params = {'histogram': histogram,'histograms_shared': histograms_shared,'adapters_shared': adapters_shared,
-                          'sample_rate':sample_rate,'segment_length':segment_length,'new_dir':new_dir, 'optimizer': optimizer,
-                          'num_workers': num_workers,'lr': lr,'batch_size' : batch_size, 
-                          'num_epochs': num_epochs,'normalize_count': normalize_count, 
+    Params = {'histograms_shared': histograms_shared,'adapters_shared': adapters_shared,
+                          'sample_rate':sample_rate,'segment_length':segment_length,'new_dir':new_dir,
+                          'optimizer': optimizer,'num_workers': num_workers,'lr': lr,'batch_size' : batch_size, 
+                          'num_epochs': num_epochs,'normalize_count': normalize_count, 'data_selection':data_selection,
                           'normalize_bins': normalize_bins,'parallel': parallel,
                           'numBins': numBins,'RR': RR,'Model_name': Model_name, 
                           'train_mode': train_mode, 'use_pretrained': use_pretrained,
                           'pin_memory': pin_memory,'Parallelize': Parallelize_model,
                           'feature': feature, 'patience': patience,
                           'window_length':window_length,'hop_length':hop_length,'number_mels':number_mels,
-                          'adapter_location': args.adapter_location,
-                          'adapter_mode': args.adapter_mode,
-                          'histogram_location': args.histogram_location,
-                          'histogram_mode': args.histogram_mode, 'hist_op': args.hist_op}
+                          'adapter_location': args.adapter_location,'adapter_mode': args.adapter_mode,
+                          'histogram_location': args.histogram_location,'histogram_mode': args.histogram_mode}
     return Params
 

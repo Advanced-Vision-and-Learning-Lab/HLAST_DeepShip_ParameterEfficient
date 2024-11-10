@@ -121,6 +121,7 @@ def main(Params):
     
             trainer.fit(model=model_AST, datamodule=data_module)
     
+    
             best_val_acc = checkpoint_callback.best_model_score.item()
             all_val_accs.append(best_val_acc)
     

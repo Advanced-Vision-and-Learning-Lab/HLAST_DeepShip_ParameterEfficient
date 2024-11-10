@@ -30,21 +30,19 @@ class LitModel(L.LightningModule):
 
         self.model_ft, self.feature_extraction_layer = initialize_model(model_name, num_classes,
                                                                         numBins,RR,Params['sample_rate'],
+                                                                        segment_length=Params['segment_length'],
                                                                         window_length=Params['window_length'],
                                                                         hop_length=Params['hop_length'],
                                                                         number_mels=Params['number_mels'],
                                                                         t_mode=Params['train_mode'],
-                                                                        histogram=Params['histogram'],
                                                                         h_shared=Params['histograms_shared'],
                                                                         a_shared=Params['adapters_shared'],
                                                                         parallel=Params['parallel'],
-                                                                        use_pretrained=Params['use_pretrained'],
                                                                         input_feature=Params['feature'],
                                                                         adapter_location=Params['adapter_location'],
                                                                         adapter_mode=Params['adapter_mode'],
                                                                         histogram_location=Params['histogram_location'],
-                                                                        histogram_mode=Params['histogram_mode'],
-                                                                        hist_op=Params['hist_op'])
+                                                                        histogram_mode=Params['histogram_mode'])
 
 
 
@@ -57,39 +55,10 @@ class LitModel(L.LightningModule):
         
         self.save_hyperparameters()
 
-        # Print number of trainable parameters for each component
-        self.print_parameter_counts()
-    
-    def print_parameter_counts(self):
-        def count_parameters(params):
-            return sum(p.numel() for p in params if p.requires_grad)
-    
-        # MLP head parameters
-        if hasattr(self.model_ft, 'mlp_head'):
-            mlp_head_params = self.model_ft.mlp_head.parameters()
-            print(f"Number of trainable parameters in MLP head: {count_parameters(mlp_head_params)}")
-    
-        # Histogram layers parameters
-        if self.model_ft.use_histogram:
-            histogram_params = self.get_histogram_parameters()
-            if histogram_params:
-                print(f"Number of trainable parameters in histogram layers: {count_parameters(histogram_params)}")
-    
-        # Adapter parameters
-        if self.model_ft.use_adapters:
-            adapter_params = self.get_adapter_parameters()
-            if adapter_params:
-                print(f"Number of trainable parameters in adapters: {count_parameters(adapter_params)}")
-    
-        # Other parameters
-        other_params = self.get_other_parameters()
-        if other_params:
-            print(f"Number of trainable parameters in others: {count_parameters(other_params)}")
-
-
     def forward(self, x):
         # in lightning, forward defines the prediction/inference actions
         y_feat = self.feature_extraction_layer(x)
+        pdb.set_trace()
         y_pred = self.model_ft(y_feat)
         return y_pred
 
@@ -135,77 +104,13 @@ class LitModel(L.LightningModule):
         self.log('test_acc', self.test_acc, on_step=False, on_epoch=True)
 
         return test_loss
-    
-    
-    
-    
-    #def configure_optimizers(self):
-        # Define different learning rates
-        
-	# Learning rate for the rest of the model
-        
-        #mlp_head_lr = self.learning_rate * 2  # Higher learning rate for mlp_head 
-    
-    #	base_lr = self.learning_rate 
-	
-    #	optimizer = torch.optim.AdamW(self.parameters(), lr=base_lr)
-        # Separate the parameters
-        #optimizer = torch.optim.AdamW([
-        #    {'params': self.model_ft.mlp_head.parameters(), 'lr': mlp_head_lr, 'weight_decay': 0.05},
-        #    {'params': [p for n, p in self.named_parameters() if "mlp_head" not in n], 'lr': base_lr, 'weight_decay': 0.05}
-        #])
-        
-        # Cosine annealing scheduler
-        #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1,int(self.trainer.max_epochs * 0.1)))
-    
-    
-     #   return optimizer
-        #return [optimizer], [scheduler]
-        
+
         
     def configure_optimizers(self):
-    # Define a single learning rate for all parameters
-        base_lr = self.learning_rate  # One learning rate for the entire model
 
-    # Use AdamW optimizer for all model parameters with the specified learning rate
+        base_lr = self.learning_rate  
         optimizer = torch.optim.AdamW(self.parameters(), lr=base_lr, weight_decay=0.1)
 
         return optimizer
 
 
-	    
-                
-    def get_histogram_parameters(self):
-        params = []
-        if self.model_ft.histogram_location in ['all', 'mhsa_ffn','mhsa_out', 'mhsa']:
-            params += list(self.model_ft.histogram_layers_mhsa.parameters())
-        if self.model_ft.histogram_location in ['all', 'mhsa_ffn', 'ffn_out', 'ffn']:
-            params += list(self.model_ft.histogram_layers_ffn.parameters())
-        if self.model_ft.histogram_location in ['all', 'mhsa_out', 'ffn_out', 'out']:
-            params += list(self.model_ft.histogram_layers_out.parameters())
-        return params
-
-    
-    def get_adapter_parameters(self):
-        params = []
-        if self.model_ft.adapter_location in ['all', 'mhsa_ffn','mhsa_out', 'mhsa']:
-            params += list(self.model_ft.adapters_mhsa.parameters())
-        if self.model_ft.adapter_location in ['all', 'mhsa_ffn', 'ffn_out', 'ffn']:
-            params += list(self.model_ft.adapters_ffn.parameters())
-        if self.model_ft.adapter_location in ['all', 'mhsa_out', 'ffn_out', 'out']:
-            params += list(self.model_ft.adapters_out.parameters())
-        return params
-
-    
-    def get_other_parameters(self):
-        # Gather other parameters that don't belong to MLP head, histogram, or adapters
-        other_params = []
-        for name, param in self.model_ft.named_parameters():
-
-            if 'mlp_head' not in name and 'histogram' not in name and 'adapter' not in name:
-                other_params.append(param)
-                
-        for name, param in self.feature_extraction_layer.named_parameters():
-                other_params.append(param)
-                        
-        return other_params
