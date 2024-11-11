@@ -71,7 +71,7 @@ class Feature_Extraction_Layer(nn.Module):
         #Extract audio feature
         x = self.features[self.input_feature](x)
         
-        #x = x.unsqueeze(1)
+        x = x.unsqueeze(1)
         
         #x=x.transpose(1,2)
         
