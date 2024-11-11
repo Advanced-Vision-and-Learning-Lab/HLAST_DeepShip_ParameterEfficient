@@ -82,7 +82,7 @@ def main(Params):
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
     all_test_accs = []
-    numRuns = 1
+    numRuns = 3
 
     for run_number in range(0, numRuns):
         

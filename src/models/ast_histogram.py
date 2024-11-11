@@ -78,7 +78,7 @@ class ASTHistogram(nn.Module):
         for param in self.classifier.parameters():
             param.requires_grad = True
         print("Base model frozen. Only histogram layers and classifier are trainable.")
-    
+                
     def forward(self, input_values):
         hidden_states = self.model.embeddings(input_values)
         
@@ -116,7 +116,7 @@ class ASTHistogram(nn.Module):
                     ffn_output = hist_features_flat
             
             hidden_states = residual + ffn_output
-    
+        
         hidden_states = self.model.layernorm(hidden_states)
         logits = self.classifier(hidden_states[:, 0])
-        return logits
+        return logits   
