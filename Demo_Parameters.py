@@ -10,11 +10,7 @@ import sys
 
 def Parameters(args):
     ######## ONLY CHANGE PARAMETERS BELOW ######## 
-    #optimizer selection
-    optimizer = args.optimizer
-    
-    #Flag to use histogram model or baseline global average pooling (GAP)
-    # Set to True to use histogram layer and False to use GAP model
+
     histograms_shared = args.histograms_shared
     adapters_shared = args.adapters_shared
     
@@ -56,7 +52,7 @@ def Parameters(args):
     #training batch size is recommended to be 64. If using at least two GPUs,
     #the recommended training batch size is 128 (as done in paper)
     #May need to reduce batch size if CUDA out of memory issue occurs
-    batch_size = {'train': args.train_batch_size, 'val': args.val_batch_size, 'test': args.test_batch_size} 
+    batch_size = {'train': args.train_batch_size,'val': args.val_batch_size,'test': args.test_batch_size} 
     num_epochs = args.num_epochs
     
     #Patience is the number of epochs to observe if a metric (loss or accuarcy)
@@ -72,7 +68,7 @@ def Parameters(args):
     #Set number of workers, i.e., how many subprocesses to use for data loading.
     #Usually set to 0 or 1. Can set to more if multiple machines are used.
     #Number of workers for experiments for two GPUs was three
-    num_workers = 8
+    num_workers = args.num_workers
     
     #Select audio feature for DeepShip 
     feature = args.audio_feature
@@ -88,23 +84,13 @@ def Parameters(args):
     #ResNet models to use for each dataset
     Model_name = args.model
     
-    #Number of classes in each dataset
-    # num_classes = {'DeepShip': 4}
-    
-    # #Number of runs and/or splits for each dataset
-    # Splits = {'DeepShip': 3}
-    
-    # Dataset = Dataset_names[data_selection]
-    # data_dir = Data_dirs[Dataset]
-
-    
     new_dir_p = './Datasets/DeepShip/'
     new_dir = '{}Segments_{}s_{}hz/'.format(new_dir_p,segment_length,sample_rate)
     
     #Return dictionary of parameters
     Params = {'histograms_shared': histograms_shared,'adapters_shared': adapters_shared,
                           'sample_rate':sample_rate,'segment_length':segment_length,'new_dir':new_dir,
-                          'optimizer': optimizer,'num_workers': num_workers,'lr': lr,'batch_size' : batch_size, 
+                          'num_workers': num_workers,'lr': lr,'batch_size' : batch_size, 
                           'num_epochs': num_epochs,'normalize_count': normalize_count, 'data_selection':data_selection,
                           'normalize_bins': normalize_bins,'parallel': parallel,
                           'numBins': numBins,'RR': RR,'Model_name': Model_name, 

@@ -7,7 +7,7 @@ from nnAudio import features
 
 class Feature_Extraction_Layer(nn.Module):
     def __init__(self, input_feature, sample_rate=16000, window_length=4096, 
-                 hop_length=512, number_mels=64, segment_length=5, RGB=False):
+                 hop_length=512, number_mels=64, segment_length=5):
         super(Feature_Extraction_Layer, self).__init__()
         
         self.sample_rate = sample_rate
@@ -47,12 +47,9 @@ class Feature_Extraction_Layer(nn.Module):
 
         self.features = {'LogMelFBank': self.LogMelFBank, 'MelSpec': self.Mel_Spectrogram}
                 
-        #self.progressive_tokenization = ProgressiveTokenizationModule(input_channels=1)  
-
         self.output_dims = None
         self.calculate_output_dims()
-        #pdb.set_trace()
-    
+
     def calculate_output_dims(self):
         try:
             length_in_seconds = self.segment_length  
@@ -67,16 +64,10 @@ class Feature_Extraction_Layer(nn.Module):
             
 
     def forward(self, x):
-        #
         #Extract audio feature
-        x = self.features[self.input_feature](x)
-        
+        x = self.features[self.input_feature](x) # torch.Size([64, 128, 157])
+
         x = x.unsqueeze(1)
-        
-        #x=x.transpose(1,2)
-        
-        # Apply progressive tokenization
-        #x = self.progressive_tokenization(x)
 
         return x
 

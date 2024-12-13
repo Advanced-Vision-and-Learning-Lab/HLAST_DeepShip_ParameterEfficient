@@ -1,10 +1,8 @@
-
 ## Python standard libraries
-from __future__ import print_function
-from __future__ import division
-import pdb
-from Utils.Feature_Extraction_Layer import Feature_Extraction_Layer
+#from __future__ import print_function
+#from __future__ import division
 
+from Utils.Feature_Extraction_Layer import Feature_Extraction_Layer
 from src.models.ast_base import ASTBase
 from src.models.ast_linear_probe import ASTLinearProbe
 from src.models.ast_adapter import ASTAdapter
@@ -12,17 +10,14 @@ from src.models.ast_histogram import ASTHistogram
 
 def initialize_model(model_name, num_classes, numBins, RR, sample_rate=16000,segment_length=5,
                      t_mode='full_fine_tune', h_shared=True, a_shared=True,
-                     parallel=True, input_feature='STFT', RGB=True,
+                     parallel=True, input_feature='STFT',
                      window_length=512, hop_length=256, number_mels=64,
                      adapter_location='ffn', adapter_mode='parallel', 
                      histogram_location='ffn', histogram_mode='parallel'):
-    
-    if model_name == "AST":
-        RGB = False    
 
     # Initialize feature layer
     feature_layer = Feature_Extraction_Layer(input_feature=input_feature, sample_rate=sample_rate,segment_length=segment_length,
-                                             window_length=window_length, hop_length=hop_length, number_mels=number_mels, RGB=RGB)
+                                             window_length=window_length, hop_length=hop_length, number_mels=number_mels)
     
     ft_dims = feature_layer.output_dims
     inpf, inpt = ft_dims[1], ft_dims[2]

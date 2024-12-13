@@ -1,13 +1,10 @@
 import torch
 import torch.nn as nn
-from torch.cuda.amp import autocast
 import os
 import wget
 os.environ['TORCH_HOME'] = 'pretrained_models'
 import timm
 from timm.models.layers import to_2tuple,trunc_normal_
-
-import pdb
 
 # override the timm package to relax the input shape constraint.
 class PatchEmbed(nn.Module):
@@ -29,17 +26,7 @@ class PatchEmbed(nn.Module):
         return x
 
 class ASTLinearProbe(nn.Module):
-    """
-    The AST model.
-    :param label_dim: the label dimension, i.e., the number of total classes, it is 527 for AudioSet, 50 for ESC-50, and 35 for speechcommands v2-35
-    :param fstride: the stride of patch spliting on the frequency dimension, for 16*16 patchs, fstride=16 means no overlap, fstride=10 means overlap of 6
-    :param tstride: the stride of patch spliting on the time dimension, for 16*16 patchs, tstride=16 means no overlap, tstride=10 means overlap of 6
-    :param input_fdim: the number of frequency bins of the input spectrogram
-    :param input_tdim: the number of time frames of the input spectrogram
-    :param imagenet_pretrain: if use ImageNet pretrained model
-    :param audioset_pretrain: if use full AudioSet and ImageNet pretrained model
-    :param model_size: the model size of AST, should be in [tiny224, small224, base224, base384], base224 and base 384 are same model, but are trained differently during ImageNet pretraining.
-    """
+
     def __init__(self, label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, 
                  imagenet_pretrain=True, audioset_pretrain=True, model_size='base384', verbose=True):
 
@@ -119,13 +106,12 @@ class ASTLinearProbe(nn.Module):
                 # this model performs 0.4593 mAP on the audioset eval set
                 audioset_mdl_url = 'https://www.dropbox.com/s/cv4knew8mvbrnvq/audioset_0.4593.pth?dl=1'
                 wget.download(audioset_mdl_url, out='pretrained_models/audioset_10_10_0.4593.pth')
-            sd = torch.load('pretrained_models/audioset_10_10_0.4593.pth', map_location=device)
+            sd = torch.load('pretrained_models/audioset_10_10_0.4593.pth', map_location=device, weights_only=True)
             audio_model = ASTLinearProbe(label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, imagenet_pretrain=False, audioset_pretrain=False, model_size='base384', verbose=False)
             audio_model = torch.nn.DataParallel(audio_model)
             audio_model.load_state_dict(sd, strict=False)
             self.v = audio_model.module.v
             self.original_embedding_dim = self.v.pos_embed.shape[2]
-            
             
             print(f"\nNumber of transformer blocks: {len(self.v.blocks)}")
  
@@ -133,7 +119,6 @@ class ASTLinearProbe(nn.Module):
                 nn.LayerNorm(self.original_embedding_dim),
                 nn.Linear(self.original_embedding_dim, label_dim)
             )
-            
     
             f_dim, t_dim = self.get_shape(fstride, tstride, input_fdim, input_tdim)
             num_patches = f_dim * t_dim
@@ -157,6 +142,8 @@ class ASTLinearProbe(nn.Module):
             new_pos_embed = new_pos_embed.reshape(1, 768, num_patches).transpose(1, 2)
             self.v.pos_embed = nn.Parameter(torch.cat([self.v.pos_embed[:, :2, :].detach(), new_pos_embed], dim=1))
 
+            self.freeze_base_model()
+
     def get_shape(self, fstride, tstride, input_fdim=128, input_tdim=1024):
         test_input = torch.randn(1, 1, input_fdim, input_tdim)
         test_proj = nn.Conv2d(1, self.original_embedding_dim, kernel_size=(16, 16), stride=(fstride, tstride))
@@ -164,70 +151,49 @@ class ASTLinearProbe(nn.Module):
         f_dim = test_out.shape[2]
         t_dim = test_out.shape[3]
         return f_dim, t_dim
+        
+    def freeze_base_model(self):
+        for param in self.v.parameters():
+            param.requires_grad = False
 
-
-    @autocast()
+        for param in self.mlp_head.parameters():
+            param.requires_grad = True
+        
+        print("Base model frozen. Only classifier is trainable.")
+    
     def forward(self, x):
-        with torch.no_grad():
-            B = x.shape[0]
-    
-            x = self.v.patch_embed(x)
-    
-            cls_tokens = self.v.cls_token.expand(B, -1, -1)
-            dist_token = self.v.dist_token.expand(B, -1, -1)
-            x = torch.cat((cls_tokens, dist_token, x), dim=1)
-            x = x + self.v.pos_embed
-            x = self.v.pos_drop(x)
-    
-            for i, blk in enumerate(self.v.blocks):
-                # MHSA sublayer
-                residual = x
-                x = blk.norm1(x)
-    
-                attn_out = blk.attn(x)
-    
-                x = attn_out + residual
-                x = blk.drop_path(x)
-    
-                # FFN sublayer
-                residual = x
-                x = blk.norm2(x)
-    
-                ffn_out = blk.mlp(x)
-                
-                x = ffn_out + residual
-                x = blk.drop_path(x)
+
+        B = x.shape[0]
+
+        x = self.v.patch_embed(x)
+
+        cls_tokens = self.v.cls_token.expand(B, -1, -1)
+        dist_token = self.v.dist_token.expand(B, -1, -1)
+        x = torch.cat((cls_tokens, dist_token, x), dim=1)
+        x = x + self.v.pos_embed
+        x = self.v.pos_drop(x)
+
+        for i, blk in enumerate(self.v.blocks):
+            # MHSA sublayer
+            residual = x
+            x = blk.norm1(x)
+
+            attn_out = blk.attn(x)
+
+            x = attn_out + residual
+            x = blk.drop_path(x)
+
+            # FFN sublayer
+            residual = x
+            x = blk.norm2(x)
+
+            ffn_out = blk.mlp(x)
+            
+            x = ffn_out + residual
+            x = blk.drop_path(x)
 
         x = (x[:, 0] + x[:, 1]) / 2
         x = self.mlp_head(x)
 
         return x 
     
-
-
-    
-# import torch.nn as nn
-# from transformers import ASTModel
-# import torch
-# class ASTLinearProbe(nn.Module):
-#     def __init__(self, num_labels, max_length, num_mel_bins, model_ckpt="MIT/ast-finetuned-audioset-10-10-0.4593"):
-#         super().__init__()
-        
-#         self.model = ASTModel.from_pretrained(model_ckpt, max_length=max_length, num_mel_bins=num_mel_bins, ignore_mismatched_sizes=True)
-#         self.model_config = self.model.config
-        
-#         # Freeze all parameters of the base model
-#         for param in self.model.parameters():
-#             param.requires_grad = False
-        
-#         # Simple linear layer for classification
-#         self.classifier = nn.Linear(self.model_config.hidden_size, num_labels)
-
-#     def forward(self, input_values):
-#         with torch.no_grad():
-#             hidden_states = self.model(input_values)[0]
-        
-#         # Use the [CLS] token representation (first token)
-#         pooled_output = hidden_states[:, 0]
-#         logits = self.classifier(pooled_output)
-#         return logits

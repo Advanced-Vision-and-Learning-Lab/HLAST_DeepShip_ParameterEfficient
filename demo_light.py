@@ -6,42 +6,54 @@ Created on Wed Apr 17 11:01:06 2024
 @author: amir.m
 """
 
-from __future__ import print_function
-from __future__ import division
+#from __future__ import print_function
+#from __future__ import division
+
 import numpy as np
 import argparse
-
-# PyTorch dependencies
 import torch
-
-# Local external libraries
-from Demo_Parameters import Parameters
 import lightning as L
 from lightning.pytorch import seed_everything
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.callbacks import ModelCheckpoint
 
+from Demo_Parameters import Parameters
+from Utils.LitModel import LitModel
+
 from Datasets.Get_preprocessed_data import process_data
+from Datasets.SSDataModule import SSAudioDataModule
 
-from SSDataModule import SSAudioDataModule
-from LitModel import LitModel
+from Datasets.ShipsEar_Data_Preprocessing import Generate_Segments
+from Datasets.ShipsEar_dataloader import ShipsEarDataModule
 
-from ShipsEar_dataloader import ShipsEarDataModule
-from ShipsEar_Data_Preprocessing import Generate_Segments
+import os
+import zipfile
+from Datasets.Create_Combined_VTUAD import Create_Combined_VTUAD
+from Datasets.VTUAD_DataModule import AudioDataModule
 
-from VTUAD_DataModule import AudioDataModule
-
-# # This code uses a newer version of numpy while other packages use an older version of numpy
-# # This is a simple workaround to avoid errors that arise from the deprecation of numpy data types
-# np.float = float  # module 'numpy' has no attribute 'float'
-# np.int = int  # module 'numpy' has no attribute 'int'
-# np.object = object  # module 'numpy' has no attribute 'object'
-# np.bool = bool  # module 'numpy' has no attribute 'bool'
 
 def count_trainable_params(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
+def print_memory_usage(prefix=""):
+    allocated = torch.cuda.memory_allocated()
+    reserved = torch.cuda.memory_reserved()
+    print(f"{prefix}Memory Allocated: {allocated / (1024**3):.4f} GB")
+    print(f"{prefix}Memory Reserved: {reserved / (1024**3):.4f} GB")
+
+def unzip_if_needed(zip_path, extract_to):
+    """
+    Check if the zip file is already unzipped. If not, unzip it.
+    """
+    if not os.path.exists(extract_to):
+        print(f"Unzipping {zip_path} to {extract_to}...")
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(extract_to)
+        print(f"Extraction of {zip_path} completed.")
+    else:
+        print(f"{extract_to} already exists. Skipping extraction.")
+        
 def main(Params):
     
     model_name = Params['Model_name']
@@ -52,7 +64,9 @@ def main(Params):
     a_shared = Params['adapters_shared']
     
     batch_size = Params['batch_size']
-    batch_size = batch_size['train']
+    t_batch_size = batch_size['train']
+
+    num_workers = Params['num_workers']
 
     print('\nStarting Experiments...')
     
@@ -62,27 +76,70 @@ def main(Params):
     
     if Params['data_selection'] == 0:
         process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
-        data_module = SSAudioDataModule(new_dir, batch_size=batch_size, sample_rate=Params['sample_rate'])
+        data_module = SSAudioDataModule(new_dir, batch_size=batch_size, sample_rate=Params['sample_rate'], num_workers=num_workers)
         data_module.prepare_data()
         num_classes = 4
+        
     elif Params['data_selection'] == 1:
-        dataset_dir = './ShipsEar/'
+        dataset_dir = './Datasets/ShipsEar/'
         Generate_Segments(dataset_dir, target_sr=16000, segment_length=5)
-        data_module = ShipsEarDataModule(parent_folder='./ShipsEar',batch_size=batch_size)
+        data_module = ShipsEarDataModule(parent_folder='./Datasets/ShipsEar', batch_size=batch_size, num_workers=num_workers)
         num_classes = 5
+        
     elif Params['data_selection'] == 2:
-        base_dir = 'VTUAD'
-        scenario_name = 'combined_scenario'
-        data_module = AudioDataModule(base_dir=base_dir, scenario_name=scenario_name, batch_size=batch_size)
+        base_dir = './Datasets/VTUAD'
+        
+        scenarios = [
+            'inclusion_2000_exclusion_4000',
+            'inclusion_3000_exclusion_5000',
+            'inclusion_4000_exclusion_6000'
+        ]
+        zip_files = [
+            'inclusion_2000_exclusion_4000.zip',
+            'inclusion_3000_exclusion_5000.zip',
+            'inclusion_4000_exclusion_6000.zip'
+        ]
+        
+        # Check and unzip all zip files
+        for zip_file, scenario in zip(zip_files, scenarios):
+            zip_path = os.path.join(base_dir, zip_file)
+            extract_to = os.path.join(base_dir, scenario)
+            unzip_if_needed(zip_path, extract_to)
+        
+        # Check and create combined scenario
+        combined_scenario = 'combined_scenario'
+        combined_path = os.path.join(base_dir, combined_scenario)
+        
+        if not os.path.exists(combined_path):
+            print(f"Creating combined scenario at {combined_path}...")
+            create_combined = Create_Combined_VTUAD(
+                base_dir=base_dir,
+                scenarios=scenarios,
+                combined_scenario=combined_scenario
+            )
+            create_combined.create_combined_scenario()
+            print(f"Combined scenario '{combined_scenario}' created successfully.")
+        else:
+            print(f"Combined scenario '{combined_scenario}' already exists. Skipping creation.")
+        
+        # Choose scenario
+        available_scenarios = scenarios + [combined_scenario]
+        print("Available scenarios:")
+        for idx, scenario in enumerate(available_scenarios, 1):
+            print(f"{idx}. {scenario}")
+        
+        chosen_scenario = combined_scenario # chosen_scenario = 'inclusion_2000_exclusion_4000'
+              
+        data_module = AudioDataModule(base_dir=base_dir, scenario_name=chosen_scenario, batch_size=batch_size, num_workers=num_workers)
         num_classes = 5
+        
     else:
         raise ValueError('Invalid data selection: must be 0, 1, or 2')
 
-    
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
     all_test_accs = []
-    numRuns = 3
+    numRuns = 1
 
     for run_number in range(0, numRuns):
         
@@ -107,7 +164,6 @@ def main(Params):
             mode='min'
         )
 
-
         model_AST = LitModel(Params, model_name, num_classes, numBins, RR)
 
         num_params = count_trainable_params(model_AST)
@@ -115,13 +171,12 @@ def main(Params):
 
         logger = TensorBoardLogger(
             save_dir=(
-                f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-                f"_AdaptShared{a_shared}_{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+                f"tb_logs/{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
+                f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
                 f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run_number}"
             ),
             name="metrics"
         )
-
 
         trainer = L.Trainer(
             max_epochs=Params['num_epochs'],
@@ -129,13 +184,15 @@ def main(Params):
             deterministic=False,
             logger=logger,
             log_every_n_steps=20,
-            accelerator='gpu',  # Specifies that you're using GPUs
-    	    devices=1,          # Number of GPUs 
+            enable_progress_bar=True,
+            accelerator='gpu', 
+    	    devices=1,          
         )
 
+        print_memory_usage('Before fit:')
+        
         trainer.fit(model=model_AST, datamodule=data_module) 
-    
-    
+        
         best_val_acc = checkpoint_callback.best_model_score.item()
         all_val_accs.append(best_val_acc)
     
@@ -154,10 +211,9 @@ def main(Params):
         best_test_acc = test_results[0]['test_acc']
         all_test_accs.append(best_test_acc)
     
-    
         results_filename = (
-        f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-        f"_AdaptShared{a_shared}_{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+        f"tb_logs/{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
+        f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
         f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run_number}/metrics.txt"
         )
 
@@ -172,24 +228,18 @@ def main(Params):
     overall_avg_test_acc = np.mean(all_test_accs)
     overall_std_test_acc = np.std(all_test_accs)
     
-    
-    
     summary_filename = (
-        f"tb_logs/{Params['feature']}_b{batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-        f"_AdaptShared{a_shared}_{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
+        f"tb_logs/{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
+        f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
         f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/summary_metrics.txt"
     )
 
-    
     with open(summary_filename, "a") as file:
         file.write("Overall Results Across All Runs\n\n")
         file.write(f"Overall Average of Best Validation Accuracies: {overall_avg_val_acc:.4f}\n")
         file.write(f"Overall Standard Deviation of Best Validation Accuracies: {overall_std_val_acc:.4f}\n\n")
         file.write(f"Overall Average of Best Test Accuracies: {overall_avg_test_acc:.4f}\n")
         file.write(f"Overall Standard Deviation of Best Test Accuracies: {overall_std_test_acc:.4f}\n\n")
-
-    
-
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -213,17 +263,17 @@ def parse_args():
     parser.add_argument('--train_batch_size', type=int, default=64,
                         help='input batch size for training (default: 128)')
     parser.add_argument('--val_batch_size', type=int, default=128,
-                        help='input batch size for validation (default: 512)')
+                        help='input batch size for training (default: 128)')
     parser.add_argument('--test_batch_size', type=int, default=128,
-                        help='input batch size for testing (default: 256)')
+                        help='input batch size for training (default: 128)')
     parser.add_argument('--num_epochs', type=int, default=100,
                         help='Number of epochs to train each model for (default: 50)')
+    parser.add_argument('--num_workers', type=int, default=8,
+                        help='Number of workers (default: 8)')
     parser.add_argument('--lr', type=float, default=1e-5,
                         help='learning rate (default: 0.001)')
     parser.add_argument('--audio_feature', type=str, default='LogMelFBank',
                         help='Audio feature for extraction')
-    parser.add_argument('--optimizer', type=str, default='Adam',
-                        help='Select optimizer')
     parser.add_argument('--patience', type=int, default=25,
                         help='Number of epochs to train each model for (default: 50)')
     parser.add_argument('--window_length', type=int, default=1024,

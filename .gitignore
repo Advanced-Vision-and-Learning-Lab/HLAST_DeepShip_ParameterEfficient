@@ -3,6 +3,8 @@
 
 # Ignore specific directories
 Datasets/DeepShip
+Datasets/ShipsEar
+Datasets/VTUAD
 tb_logs/
 pretrained_models/
 esc50_data/

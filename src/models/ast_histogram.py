@@ -1,16 +1,11 @@
 import torch
 import torch.nn as nn
-from torch.cuda.amp import autocast
 import os
 import wget
 os.environ['TORCH_HOME'] = 'pretrained_models'
 import timm
 from timm.models.layers import to_2tuple,trunc_normal_
-
-import pdb
-
 from .RBFHistogramPooling import HistogramLayer
-
 
 # override the timm package to relax the input shape constraint.
 class PatchEmbed(nn.Module):
@@ -34,14 +29,6 @@ class PatchEmbed(nn.Module):
 class ASTHistogram(nn.Module):
     """
     The AST model.
-    :param label_dim: the label dimension, i.e., the number of total classes, it is 527 for AudioSet, 50 for ESC-50, and 35 for speechcommands v2-35
-    :param fstride: the stride of patch spliting on the frequency dimension, for 16*16 patchs, fstride=16 means no overlap, fstride=10 means overlap of 6
-    :param tstride: the stride of patch spliting on the time dimension, for 16*16 patchs, tstride=16 means no overlap, tstride=10 means overlap of 6
-    :param input_fdim: the number of frequency bins of the input spectrogram
-    :param input_tdim: the number of time frames of the input spectrogram
-    :param imagenet_pretrain: if use ImageNet pretrained model
-    :param audioset_pretrain: if use full AudioSet and ImageNet pretrained model
-    :param model_size: the model size of AST, should be in [tiny224, small224, base224, base384], base224 and base 384 are same model, but are trained differently during ImageNet pretraining.
     """
     def __init__(self, label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, 
                  imagenet_pretrain=True, model_size='base384', verbose=True, audioset_pretrain=True, hist_shared=True,
@@ -123,7 +110,7 @@ class ASTHistogram(nn.Module):
                 # this model performs 0.4593 mAP on the audioset eval set
                 audioset_mdl_url = 'https://www.dropbox.com/s/cv4knew8mvbrnvq/audioset_0.4593.pth?dl=1'
                 wget.download(audioset_mdl_url, out='pretrained_models/audioset_10_10_0.4593.pth')
-            sd = torch.load('pretrained_models/audioset_10_10_0.4593.pth', map_location=device)
+            sd = torch.load('pretrained_models/audioset_10_10_0.4593.pth', map_location=device, weights_only=True)
             audio_model = ASTHistogram(label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, imagenet_pretrain=False, audioset_pretrain=False, model_size='base384', verbose=False)
             audio_model = torch.nn.DataParallel(audio_model)
             audio_model.load_state_dict(sd, strict=False)
@@ -135,6 +122,7 @@ class ASTHistogram(nn.Module):
             self.histogram_mode = histogram_mode
             self.histogram_location = histogram_location
             
+            output_size = self.original_embedding_dim // NumBins
             if hist_shared:
                 # shared weights:
 
@@ -146,43 +134,36 @@ class ASTHistogram(nn.Module):
                     histogram_layer_mhsa = HistogramLayer(in_channels = 768,
                                                       kernel_size = 1, dim=1,
                                                       num_bins=NumBins, stride=1,
-                                                      normalize_count=True, normalize_bins=True)
+                                                      normalize_count=True, normalize_bins=True, output_size=output_size)
                     
                     self.histogram_layers_mhsa = nn.ModuleList([
                         histogram_layer_mhsa for _ in range(len(self.v.blocks))
                     ])
-                    output_size = int(self.original_embedding_dim / histogram_layer_mhsa.bin_widths_conv.out_channels)
-                    for layer in self.histogram_layers_mhsa:
-                        layer.hist_pool = nn.AdaptiveAvgPool1d(output_size)
+
                     print(f"Histogram Layers for MHSA Initialized: {self.histogram_layers_mhsa}\n")
                     
                 if self.histogram_location in ['all', 'mhsa_ffn', 'ffn_out', 'ffn']:
                     histogram_layer_ffn = HistogramLayer(in_channels = 768,
                                                       kernel_size = 1, dim=1,
                                                       num_bins=NumBins, stride=1,
-                                                      normalize_count=True, normalize_bins=True)
+                                                      normalize_count=True, normalize_bins=True, output_size=output_size)
                     self.histogram_layers_ffn = nn.ModuleList([
                         histogram_layer_ffn for _ in range(len(self.v.blocks))
                     ])
-                    output_size = int(self.original_embedding_dim / histogram_layer_ffn.bin_widths_conv.out_channels)
-                    for layer in self.histogram_layers_ffn:
-                        layer.hist_pool = nn.AdaptiveAvgPool1d(output_size)
+
                     print(f"Histogram Layers for FFN Initialized: {self.histogram_layers_ffn}\n")
                              
                 if self.histogram_location in ['all', 'mhsa_out', 'ffn_out', 'out']:
                     histogram_layer_out = HistogramLayer(in_channels = 768,
                                                       kernel_size = 1, dim=1,
                                                       num_bins=NumBins, stride=1,
-                                                      normalize_count=True, normalize_bins=True)
+                                                      normalize_count=True, normalize_bins=True, output_size=output_size)
                     self.histogram_layers_out = nn.ModuleList([
                         histogram_layer_out for _ in range(len(self.v.blocks))
                     ])
-                    output_size = int(self.original_embedding_dim / histogram_layer_out.bin_widths_conv.out_channels)
-                    for layer in self.histogram_layers_out:
-                        layer.hist_pool = nn.AdaptiveAvgPool1d(output_size)
+
                     print(f"Histogram Layers for OUTPUT Initialized: {self.histogram_layers_out}\n")
-                    
-                        
+                                  
             elif not hist_shared:
             # histogram layer disticnt weights:
                 
@@ -191,13 +172,10 @@ class ASTHistogram(nn.Module):
                         HistogramLayer(in_channels=768,
                                         kernel_size=1, dim=1,
                                         num_bins=NumBins, stride=1,
-                                        normalize_count=True, normalize_bins=True) 
+                                        normalize_count=True, normalize_bins=True, output_size=output_size) 
                         for _ in range(len(self.v.blocks))  # Create a new instance for each block
                     ])
-                    output_size = int(self.original_embedding_dim / self.histogram_layers_mhsa[0].bin_widths_conv.out_channels)
-        
-                    for layer in self.histogram_layers_mhsa:
-                        layer.hist_pool = nn.AdaptiveAvgPool1d(output_size)
+
                     print(f"Histogram Layers for MHSA Initialized: {self.histogram_layers_mhsa}\n")
                 
                 if self.histogram_location in ['all', 'mhsa_ffn', 'ffn_out', 'ffn']:
@@ -205,12 +183,10 @@ class ASTHistogram(nn.Module):
                         HistogramLayer(in_channels=768,
                                         kernel_size=1, dim=1,
                                         num_bins=NumBins, stride=1,
-                                        normalize_count=True, normalize_bins=True) 
+                                        normalize_count=True, normalize_bins=True, output_size=output_size) 
                         for _ in range(len(self.v.blocks))  # Create a new instance for each block
                     ])
-                    output_size = int(self.original_embedding_dim / self.histogram_layers_ffn[0].bin_widths_conv.out_channels)
-                    for layer in self.histogram_layers_ffn:
-                        layer.hist_pool = nn.AdaptiveAvgPool1d(output_size)
+
                     print(f"Histogram Layers for FFN Initialized: {self.histogram_layers_ffn}\n")
                 
                 if self.histogram_location in ['all', 'mhsa_out', 'ffn_out', 'out']:
@@ -218,21 +194,17 @@ class ASTHistogram(nn.Module):
                         HistogramLayer(in_channels=768,
                                         kernel_size=1, dim=1,
                                         num_bins=NumBins, stride=1,
-                                        normalize_count=True, normalize_bins=True) 
+                                        normalize_count=True, normalize_bins=True, output_size=output_size) 
                         for _ in range(len(self.v.blocks))  # Create a new instance for each block
                     ])
-                    output_size = int(self.original_embedding_dim / self.histogram_layers_out[0].bin_widths_conv.out_channels)
-                    for layer in self.histogram_layers_out:
-                        layer.hist_pool = nn.AdaptiveAvgPool1d(output_size)
-                    print(f"Histogram Layers for OUTPUT Initialized: {self.histogram_layers_out}\n")
 
+                    print(f"Histogram Layers for OUTPUT Initialized: {self.histogram_layers_out}\n")
 
             self.mlp_head = nn.Sequential(
                 nn.LayerNorm(self.original_embedding_dim),
                 nn.Linear(self.original_embedding_dim, label_dim)
             )
             
-    
             f_dim, t_dim = self.get_shape(fstride, tstride, input_fdim, input_tdim)
             num_patches = f_dim * t_dim
             self.v.patch_embed.num_patches = num_patches
@@ -256,6 +228,7 @@ class ASTHistogram(nn.Module):
             self.v.pos_embed = nn.Parameter(torch.cat([self.v.pos_embed[:, :2, :].detach(), new_pos_embed], dim=1))
             
             self.freeze_base_model()
+                       
     def get_shape(self, fstride, tstride, input_fdim=128, input_tdim=1024):
         test_input = torch.randn(1, 1, input_fdim, input_tdim)
         test_proj = nn.Conv2d(1, self.original_embedding_dim, kernel_size=(16, 16), stride=(fstride, tstride))
@@ -291,8 +264,6 @@ class ASTHistogram(nn.Module):
         
         print("Base model frozen. Only initialized histogram layers and classifier are trainable.")
         
-
-    @autocast()
     def forward(self, x):
         B = x.shape[0]
 
@@ -312,17 +283,18 @@ class ASTHistogram(nn.Module):
             if self.histogram_location in ['all', 'mhsa_ffn', 'mhsa_out', 'mhsa']:
                 if self.histogram_mode == 'parallel':
                     attn_out = blk.attn(x)
+
                     hist_features = self.histogram_layers_mhsa[i](x.permute(0, 2, 1)).permute(0, 2, 1)
                     hist_features_flat = hist_features.reshape(B, -1)
                     hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
                     attn_out = attn_out + hist_features_flat 
-
+                       
                 elif self.histogram_mode == 'sequential':
                     attn_out = blk.attn(x)
                     hist_features = self.histogram_layers_mhsa[i](attn_out.permute(0, 2, 1)).permute(0, 2, 1)
                     hist_features_flat = hist_features.reshape(B, -1)
                     hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
-                    attn_out = hist_features_flat  # Sequential applies after attention
+                    attn_out = hist_features_flat  
 
             else:
                 attn_out = blk.attn(x)
@@ -330,11 +302,9 @@ class ASTHistogram(nn.Module):
             x = attn_out + residual
             x = blk.drop_path(x)
 
-
             # FFN sublayer
             residual = x
             x = blk.norm2(x)
-
 
             if self.histogram_location in ['all', 'mhsa_ffn', 'ffn_out', 'ffn']:
                 if self.histogram_mode == 'parallel':
@@ -349,14 +319,13 @@ class ASTHistogram(nn.Module):
                     hist_features = self.histogram_layers_ffn[i](ffn_out.permute(0, 2, 1)).permute(0, 2, 1)
                     hist_features_flat = hist_features.reshape(B, -1)
                     hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, x.shape[1], -1)
-                    ffn_out = hist_features_flat  # Sequential applies after ffn
+                    ffn_out = hist_features_flat 
     
             else:
                 ffn_out = blk.mlp(x)
             
             x = ffn_out + residual
             x = blk.drop_path(x)
-
 
             if self.histogram_location in ['all', 'mhsa_out', 'ffn_out', 'out']:
                 if self.histogram_mode == 'parallel':
@@ -369,126 +338,3 @@ class ASTHistogram(nn.Module):
         x = self.mlp_head(x)
 
         return x 
-
-# import torch
-# import torch.nn as nn
-# from transformers import ASTModel
-# from .RBFHistogramPooling import HistogramLayer
-
-# class ASTHistogram(nn.Module):
-#     def __init__(self, num_labels, max_length, num_mel_bins, num_bins,
-#                  histogram_location='mhsa_ffn', hist_shared=True, histogram_mode='parallel', 
-#                  model_ckpt="MIT/ast-finetuned-audioset-10-10-0.4593"):
-#         super().__init__()
-        
-#         self.model = ASTModel.from_pretrained(model_ckpt, max_length=max_length, num_mel_bins=num_mel_bins, ignore_mismatched_sizes=True)
-#         self.model_config = self.model.config
-#         self.original_embedding_dim = self.model_config.hidden_size
-#         self.histogram_location = histogram_location
-#         self.histogram_mode = histogram_mode
-#         self.hist_shared = hist_shared
-#         self.num_bins = num_bins
-        
-#         self.histogram_layers = nn.ModuleDict()
-#         num_layers = len(self.model.encoder.layer)
-        
-#         print(f"Initializing ASTHistogram with the following configuration:")
-#         print(f"Histogram location: {histogram_location}")
-#         print(f"Histogram mode: {histogram_mode}")
-#         print(f"Histogram shared: {hist_shared}")
-#         print(f"Number of bins: {self.num_bins}")
-#         print(f"Number of transformer layers: {num_layers}")
-        
-#         if hist_shared:
-#             if 'mhsa' in histogram_location:
-#                 self.histogram_layers['mhsa'] = HistogramLayer(in_channels=self.original_embedding_dim,
-#                                                                kernel_size=1, dim=1,
-#                                                                num_bins=num_bins, stride=1,
-#                                                                normalize_count=True, normalize_bins=True)
-#                 output_size = int(self.original_embedding_dim / self.histogram_layers['mhsa'].bin_widths_conv.out_channels)
-#                 self.histogram_layers['mhsa'].hist_pool = nn.AdaptiveAvgPool1d(output_size)
-#                 print(f"Added shared MHSA histogram layer with {num_bins} bins and output size {output_size}")
-#             if 'ffn' in histogram_location:
-#                 self.histogram_layers['ffn'] = HistogramLayer(in_channels=self.original_embedding_dim,
-#                                                               kernel_size=1, dim=1,
-#                                                               num_bins=num_bins, stride=1,
-#                                                               normalize_count=True, normalize_bins=True)
-#                 output_size = int(self.original_embedding_dim / self.histogram_layers['ffn'].bin_widths_conv.out_channels)
-#                 self.histogram_layers['ffn'].hist_pool = nn.AdaptiveAvgPool1d(output_size)
-#                 print(f"Added shared FFN histogram layer with {num_bins} bins and output size {output_size}")
-#         else:
-#             if 'mhsa' in histogram_location:
-#                 self.histogram_layers['mhsa'] = nn.ModuleList([HistogramLayer(in_channels=self.original_embedding_dim,
-#                                                                               kernel_size=1, dim=1,
-#                                                                               num_bins=num_bins, stride=1,
-#                                                                               normalize_count=True, normalize_bins=True) 
-#                                                                for _ in range(num_layers)])
-#                 for layer in self.histogram_layers['mhsa']:
-#                     output_size = int(self.original_embedding_dim / layer.bin_widths_conv.out_channels)
-#                     layer.hist_pool = nn.AdaptiveAvgPool1d(output_size)
-#                 print(f"Added {num_layers} non-shared MHSA histogram layers with {num_bins} bins and output size {output_size}")
-#             if 'ffn' in histogram_location:
-#                 self.histogram_layers['ffn'] = nn.ModuleList([HistogramLayer(in_channels=self.original_embedding_dim,
-#                                                                              kernel_size=1, dim=1,
-#                                                                              num_bins=num_bins, stride=1,
-#                                                                              normalize_count=True, normalize_bins=True) 
-#                                                               for _ in range(num_layers)])
-#                 for layer in self.histogram_layers['ffn']:
-#                     output_size = int(self.original_embedding_dim / layer.bin_widths_conv.out_channels)
-#                     layer.hist_pool = nn.AdaptiveAvgPool1d(output_size)
-#                 print(f"Added {num_layers} non-shared FFN histogram layers with {num_bins} bins and output size {output_size}")
-        
-#         self.classifier = nn.Linear(self.original_embedding_dim, num_labels)
-#         self.freeze_base_model()
-
-#     def freeze_base_model(self):
-#         for param in self.model.parameters():
-#             param.requires_grad = False
-#         for hist_layer in self.histogram_layers.values():
-#             for param in hist_layer.parameters():
-#                 param.requires_grad = True
-#         for param in self.classifier.parameters():
-#             param.requires_grad = True
-#         print("Base model frozen. Only histogram layers and classifier are trainable.")
-                
-#     def forward(self, input_values):
-#         hidden_states = self.model.embeddings(input_values)
-        
-#         for i, layer in enumerate(self.model.encoder.layer):
-#             residual = hidden_states
-#             hidden_states = layer.layernorm_before(hidden_states)
-            
-#             # MHSA sublayer
-#             attn_output = layer.attention(hidden_states)[0]
-#             if 'mhsa' in self.histogram_location:
-#                 hist_layer = self.histogram_layers['mhsa'] if self.hist_shared else self.histogram_layers['mhsa'][i]
-#                 hist_features = hist_layer(residual.permute(0, 2, 1)).permute(0, 2, 1)
-#                 hist_features_flat = hist_features.reshape(residual.shape[0], -1)
-#                 hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, residual.shape[1], -1)
-#                 if self.histogram_mode == 'parallel':
-#                     attn_output = attn_output + hist_features_flat
-#                 else:  # sequential
-#                     attn_output = hist_features_flat
-#             hidden_states = residual + attn_output
-            
-#             # FFN sublayer
-#             residual = hidden_states
-#             hidden_states = layer.layernorm_after(hidden_states)
-#             ffn_output = layer.intermediate(hidden_states)
-#             ffn_output = layer.output(ffn_output, hidden_states)
-            
-#             if 'ffn' in self.histogram_location:
-#                 hist_layer = self.histogram_layers['ffn'] if self.hist_shared else self.histogram_layers['ffn'][i]
-#                 hist_features = hist_layer(residual.permute(0, 2, 1)).permute(0, 2, 1)
-#                 hist_features_flat = hist_features.reshape(residual.shape[0], -1)
-#                 hist_features_flat = hist_features_flat.unsqueeze(1).expand(-1, residual.shape[1], -1)
-#                 if self.histogram_mode == 'parallel':
-#                     ffn_output = ffn_output + hist_features_flat
-#                 else:  # sequential
-#                     ffn_output = hist_features_flat
-            
-#             hidden_states = residual + ffn_output
-        
-#         hidden_states = self.model.layernorm(hidden_states)
-#         logits = self.classifier(hidden_states[:, 0])
-#         return logits   

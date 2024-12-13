@@ -6,20 +6,15 @@ Created on Tue Jul 16 10:10:34 2024
 @author: amir.m
 """
 
-from __future__ import print_function
-from __future__ import division
+#from __future__ import print_function
+#from __future__ import division
 
-# PyTorch dependencies
 import torch
-
-# Local external libraries
 from Utils.Network_functions import initialize_model
-
 import torch.nn.functional as F
 import lightning as L
 import torchmetrics
-import pdb
-
+    
 class LitModel(L.LightningModule):
 
     def __init__(self, Params, model_name, num_classes, numBins, RR):
@@ -44,8 +39,6 @@ class LitModel(L.LightningModule):
                                                                         histogram_location=Params['histogram_location'],
                                                                         histogram_mode=Params['histogram_mode'])
 
-
-
         self.train_acc = torchmetrics.classification.Accuracy(
             task="multiclass", num_classes=num_classes)
         self.val_acc = torchmetrics.classification.Accuracy(
@@ -56,14 +49,11 @@ class LitModel(L.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x):
-        # in lightning, forward defines the prediction/inference actions
         y_feat = self.feature_extraction_layer(x)
-        pdb.set_trace()
         y_pred = self.model_ft(y_feat)
         return y_pred
 
     def training_step(self, train_batch, batch_idx):
-        # training_step defines the train loop. It is independent of forward
         x, y = train_batch
         y_feat = self.feature_extraction_layer(x)
         y_pred = self.model_ft(y_feat)
@@ -76,7 +66,6 @@ class LitModel(L.LightningModule):
 
         return loss
 
-
     def validation_step(self, val_batch, batch_idx):
         x, y = val_batch
         y_feat = self.feature_extraction_layer(x)
@@ -88,7 +77,6 @@ class LitModel(L.LightningModule):
         self.log('val_acc', self.val_acc, on_step=False, on_epoch=True)
 
         return val_loss
-
  
     def test_step(self, test_batch, batch_idx):
         x, y = test_batch
@@ -105,11 +93,10 @@ class LitModel(L.LightningModule):
 
         return test_loss
 
-        
     def configure_optimizers(self):
 
         base_lr = self.learning_rate  
-        optimizer = torch.optim.AdamW(self.parameters(), lr=base_lr, weight_decay=0.1)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=base_lr)
 
         return optimizer
 

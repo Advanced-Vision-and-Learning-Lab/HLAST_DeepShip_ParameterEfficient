@@ -1,13 +1,10 @@
 import torch
 import torch.nn as nn
-from torch.cuda.amp import autocast
 import os
 import wget
 os.environ['TORCH_HOME'] = 'pretrained_models'
 import timm
 from timm.models.layers import to_2tuple,trunc_normal_
-
-import pdb
 
 # override the timm package to relax the input shape constraint.
 class PatchEmbed(nn.Module):
@@ -29,17 +26,7 @@ class PatchEmbed(nn.Module):
         return x
 
 class ASTBase(nn.Module):
-    """
-    The AST model.
-    :param label_dim: the label dimension, i.e., the number of total classes, it is 527 for AudioSet, 50 for ESC-50, and 35 for speechcommands v2-35
-    :param fstride: the stride of patch spliting on the frequency dimension, for 16*16 patchs, fstride=16 means no overlap, fstride=10 means overlap of 6
-    :param tstride: the stride of patch spliting on the time dimension, for 16*16 patchs, tstride=16 means no overlap, tstride=10 means overlap of 6
-    :param input_fdim: the number of frequency bins of the input spectrogram
-    :param input_tdim: the number of time frames of the input spectrogram
-    :param imagenet_pretrain: if use ImageNet pretrained model
-    :param audioset_pretrain: if use full AudioSet and ImageNet pretrained model
-    :param model_size: the model size of AST, should be in [tiny224, small224, base224, base384], base224 and base 384 are same model, but are trained differently during ImageNet pretraining.
-    """
+
     def __init__(self, label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, 
                  imagenet_pretrain=True, audioset_pretrain=True, model_size='base384', verbose=True):
 
@@ -119,13 +106,12 @@ class ASTBase(nn.Module):
                 # this model performs 0.4593 mAP on the audioset eval set
                 audioset_mdl_url = 'https://www.dropbox.com/s/cv4knew8mvbrnvq/audioset_0.4593.pth?dl=1'
                 wget.download(audioset_mdl_url, out='pretrained_models/audioset_10_10_0.4593.pth')
-            sd = torch.load('pretrained_models/audioset_10_10_0.4593.pth', map_location=device)
+            sd = torch.load('pretrained_models/audioset_10_10_0.4593.pth', map_location=device, weights_only=True)
             audio_model = ASTBase(label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, imagenet_pretrain=False, audioset_pretrain=False, model_size='base384', verbose=False)
             audio_model = torch.nn.DataParallel(audio_model)
             audio_model.load_state_dict(sd, strict=False)
             self.v = audio_model.module.v
             self.original_embedding_dim = self.v.pos_embed.shape[2]
-            
             
             print(f"\nNumber of transformer blocks: {len(self.v.blocks)}")
  
@@ -134,7 +120,6 @@ class ASTBase(nn.Module):
                 nn.Linear(self.original_embedding_dim, label_dim)
             )
             
-    
             f_dim, t_dim = self.get_shape(fstride, tstride, input_fdim, input_tdim)
             num_patches = f_dim * t_dim
             self.v.patch_embed.num_patches = num_patches
@@ -165,8 +150,6 @@ class ASTBase(nn.Module):
         t_dim = test_out.shape[3]
         return f_dim, t_dim
 
-
-    @autocast()
     def forward(self, x):
         B = x.shape[0]
 
@@ -202,28 +185,5 @@ class ASTBase(nn.Module):
 
         return x 
     
-# from transformers import ASTModel
-# import torch.nn as nn
-# import pdb
-
-# class ASTBase(nn.Module):
-#     def __init__(self, num_labels, max_length=157, num_mel_bins=64, model_ckpt="MIT/ast-finetuned-audioset-10-10-0.4593"):
-#         super().__init__()
-        
-#         self.model = ASTModel.from_pretrained(model_ckpt, max_length=max_length, num_mel_bins=num_mel_bins,
-#                                               ignore_mismatched_sizes=True)
-#         self.model_config = self.model.config
-        
-#         # Simple linear layer for classification
-#         self.classifier = nn.Linear(self.model_config.hidden_size, num_labels)
-
-#     def forward(self, input_values):
-
-#         hidden_states = self.model(input_values)[0]
-        
-#         # Use the [CLS] token representation (first token)
-#         pooled_output = hidden_states[:, 0]
-#         logits = self.classifier(pooled_output)
-#         return logits
 
     

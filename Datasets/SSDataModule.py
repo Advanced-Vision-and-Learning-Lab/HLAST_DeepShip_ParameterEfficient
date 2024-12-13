@@ -35,14 +35,14 @@ class SSAudioDataset(Dataset):
 
 
 class SSAudioDataModule(L.LightningDataModule):
-    def __init__(self, data_dir, batch_size, sample_rate, test_size=0.2, val_size=0.1):
+    def __init__(self, data_dir, batch_size, sample_rate, num_workers, test_size=0.2, val_size=0.1):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.test_size = test_size
         self.val_size = val_size
         self.class_to_idx = self.create_class_index_mapping()
-
+        self.num_workers = num_workers
         self.prepared = False
         self.sample_rate = sample_rate
         self.raw_data_list = [] 
@@ -162,93 +162,6 @@ class SSAudioDataModule(L.LightningDataModule):
         else:
             print("\nNo data leakage detected.\n")
 
-    def count_samples_per_class(self, data_list):
-        class_counts = defaultdict(int)
-        for file_data in data_list:
-            class_name = file_data['file_path'].split(os.sep)[-3]
-            class_counts[class_name] += 1
-        return class_counts
-  
-            
-    def print_class_distribution(self):
-        print('Train set class distribution:')
-        train_class_counts = self.count_samples_per_class(self.train_data)
-        train_recording_counts = defaultdict(set)  
-    
-        for file_data in self.train_data:
-            class_name = file_data['file_path'].split(os.sep)[-3]
-            recording_name = file_data['file_path'].split(os.sep)[-2]
-            train_recording_counts[class_name].add(recording_name)  # Add recording names to sets
-    
-        for class_name, count in train_class_counts.items():
-            print(f'  {class_name}: {count} samples, {len(train_recording_counts[class_name])} recordings')
-    
-        print('Validation set class distribution:')
-        val_class_counts = self.count_samples_per_class(self.val_data)
-        val_recording_counts = defaultdict(set)
-    
-        for file_data in self.val_data:
-            class_name = file_data['file_path'].split(os.sep)[-3]
-            recording_name = file_data['file_path'].split(os.sep)[-2]
-            val_recording_counts[class_name].add(recording_name)
-    
-        for class_name, count in val_class_counts.items():
-            print(f'  {class_name}: {count} samples, {len(val_recording_counts[class_name])} recordings')
-    
-        print('Test set class distribution:')
-        test_class_counts = self.count_samples_per_class(self.test_data)
-        test_recording_counts = defaultdict(set)
-    
-        for file_data in self.test_data:
-            class_name = file_data['file_path'].split(os.sep)[-3]
-            recording_name = file_data['file_path'].split(os.sep)[-2]
-            test_recording_counts[class_name].add(recording_name)
-    
-        for class_name, count in test_class_counts.items():
-            print(f'  {class_name}: {count} samples, {len(test_recording_counts[class_name])} recordings')
-    
-        # Calculate total counts across all splits
-        total_class_counts = {}
-        total_recording_counts = defaultdict(set)
-        for class_name in set(train_recording_counts.keys()).union(val_recording_counts.keys()).union(test_recording_counts.keys()):
-            total_sample_count = train_class_counts.get(class_name, 0) + val_class_counts.get(class_name, 0) + test_class_counts.get(class_name, 0)
-            total_class_counts[class_name] = total_sample_count
-            total_recording_counts[class_name] = train_recording_counts[class_name].union(val_recording_counts[class_name]).union(test_recording_counts[class_name])
-    
-        print('Total samples and recordings per class:')
-        for class_name in total_class_counts:
-            print(f'  {class_name}: {total_class_counts[class_name]} samples, {len(total_recording_counts[class_name])} recordings')
-
-            
-    def get_min_max_train(self):
-        global_min = float('inf')
-        global_max = float('-inf')
-        for file_data in self.train_data:
-            data = file_data['data'].astype(np.float32)
-            file_min = np.min(data)
-            file_max = np.max(data)
-            if file_min < global_min:
-                global_min = file_min
-            if file_max > global_max:
-                global_max = file_max
-        return global_min, global_max
-
-    def normalize_data(self, data_list, global_min, global_max):
-        print("\nNormalizing train/val/test")
-        normalized_data_list = []
-        global_min = np.float32(global_min)
-        global_max = np.float32(global_max)
-        for file_data in data_list:
-            data = file_data['data'].astype(np.float32)
-            normalized_data = (data - global_min) / (global_max - global_min)
-            normalized_file_data = {
-                'file_path': file_data['file_path'],
-                'sampling_rate': file_data['sampling_rate'],
-                'data': normalized_data
-            }
-            normalized_data_list.append(normalized_file_data)
-        return normalized_data_list
-
     def save_split_indices(self, filepath):
         print("\nSaving split indices...")
         with open(filepath, 'w') as f:
@@ -292,10 +205,6 @@ class SSAudioDataModule(L.LightningDataModule):
                         adjusted_file_path = '/'.join(parts)
                         sampling_rate, data = wavfile.read(adjusted_file_path)
                         
-                        if first_file:
-                            print(f"Sample rate of the data: {sampling_rate} Hz")
-                            first_file = False  
-                        
                         file_data = {
                             'file_path': adjusted_file_path,
                             'sampling_rate': sampling_rate,
@@ -314,13 +223,7 @@ class SSAudioDataModule(L.LightningDataModule):
         #if not self.prepared:
         self.check_data_leakage()
         self.get_raw_audio_data()
-        #self.print_class_distribution()
-        
-        #self.global_min, self.global_max = self.get_min_max_train()
-        #self.train_data = self.normalize_data(self.train_data, self.global_min, self.global_max)
-        #self.val_data = self.normalize_data(self.val_data, self.global_min, self.global_max)
-        #self.test_data = self.normalize_data(self.test_data, self.global_min, self.global_max)
-        
+
         self.prepared = True
 
 
@@ -340,14 +243,6 @@ class SSAudioDataModule(L.LightningDataModule):
                 self.train_data, self.val_data, self.test_data = self.create_splits(self.organized_data)
                 
                 self.check_data_leakage()
-                #self.print_class_distribution()
-                
-                
-                #self.global_min, self.global_max = self.get_min_max_train()       
-                #self.train_data = self.normalize_data(self.train_data, self.global_min, self.global_max)
-                #self.val_data = self.normalize_data(self.val_data, self.global_min, self.global_max)
-                #self.test_data = self.normalize_data(self.test_data, self.global_min, self.global_max)
-                
                 
                 self.save_split_indices(split_indices_path)  
                 
@@ -360,12 +255,12 @@ class SSAudioDataModule(L.LightningDataModule):
 
     def train_dataloader(self):
         train_dataset = SSAudioDataset(self.train_data, self.class_to_idx)
-        return DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=8, pin_memory=True)
+        return DataLoader(train_dataset, batch_size=self.batch_size['train'], shuffle=True, num_workers=self.num_workers, pin_memory=True)
 
     def val_dataloader(self):
         val_dataset = SSAudioDataset(self.val_data, self.class_to_idx)
-        return DataLoader(val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        return DataLoader(val_dataset, batch_size=self.batch_size['val'], shuffle=False, num_workers=self.num_workers, pin_memory=True)
 
     def test_dataloader(self):
         test_dataset = SSAudioDataset(self.test_data, self.class_to_idx)
-        return DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=8, pin_memory=True)
+        return DataLoader(test_dataset, batch_size=self.batch_size['test'], shuffle=False, num_workers=self.num_workers, pin_memory=True)
