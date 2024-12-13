@@ -18,24 +18,28 @@ import random
 
 class SSAudioDataset(Dataset):
     def __init__(self, data_list, class_to_idx):
-        self.data_list = data_list  # Store the list of data
-        self.class_to_idx = class_to_idx  # Store the class-to-index mapping
+        self.data_list = data_list
+        self.class_to_idx = class_to_idx
         
     def __len__(self):
-        return len(self.data_list)  # Return the number of samples
+        return len(self.data_list)
 
     def __getitem__(self, idx):
-        file_data = self.data_list[idx]  # Get the data for the given index
-        data = file_data['data']  # Extract the normalized audio data
-        class_name = file_data['file_path'].split(os.sep)[-3]  # Extract the class name from the file path
-        label = self.class_to_idx[class_name]  # Convert the class name to an integer label
-        data_tensor = torch.tensor(data, dtype=torch.float32)  # Convert data to a PyTorch tensor
-        label_tensor = torch.tensor(label, dtype=torch.long)  # Convert label to a PyTorch tensor
-        return data_tensor, label_tensor  # Return the data and label tensors
+        file_data = self.data_list[idx]
+        file_path = file_data['file_path']
+        class_name = os.path.basename(os.path.dirname(os.path.dirname(file_path)))
+        label = self.class_to_idx[class_name]
+        
+        # Load the audio file on-the-fly
+        _, data = wavfile.read(file_path)
+        data_tensor = torch.tensor(data, dtype=torch.float32)
+        label_tensor = torch.tensor(label, dtype=torch.long)
+        
+        return data_tensor, label_tensor
 
 
 class SSAudioDataModule(L.LightningDataModule):
-    def __init__(self, data_dir, batch_size, sample_rate, num_workers, test_size=0.2, val_size=0.1):
+    def __init__(self, data_dir, batch_size, num_workers, test_size=0.2, val_size=0.1):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
@@ -44,8 +48,6 @@ class SSAudioDataModule(L.LightningDataModule):
         self.class_to_idx = self.create_class_index_mapping()
         self.num_workers = num_workers
         self.prepared = False
-        self.sample_rate = sample_rate
-        self.raw_data_list = [] 
 
     def create_class_index_mapping(self):
         class_names = [d for d in os.listdir(self.data_dir) if os.path.isdir(os.path.join(self.data_dir, d))]
@@ -54,41 +56,22 @@ class SSAudioDataModule(L.LightningDataModule):
         return class_to_idx
 
     def list_wav_files(self):
-        wav_files = []
-        for class_name in os.listdir(self.data_dir):
-            class_path = os.path.join(self.data_dir, class_name)
-            if os.path.isdir(class_path):
-                for recording in os.listdir(class_path):
-                    recording_path = os.path.join(class_path, recording)
-                    if os.path.isdir(recording_path):
-                        for segment in os.listdir(recording_path):
-                            if segment.endswith('.wav'):
-                                segment_path = os.path.join(recording_path, segment)
-                                wav_files.append(segment_path)
+        wav_files = [
+            os.path.join(self.data_dir, class_name, recording, segment)
+            for class_name in os.listdir(self.data_dir)
+            if os.path.isdir(os.path.join(self.data_dir, class_name))
+            for recording in os.listdir(os.path.join(self.data_dir, class_name))
+            if os.path.isdir(os.path.join(self.data_dir, class_name, recording))
+            for segment in os.listdir(os.path.join(self.data_dir, class_name, recording))
+            if segment.endswith('.wav')
+        ]
         print(f'Found {len(wav_files)} .wav files')
         return wav_files
 
     def read_wav_files(self, wav_files):
-        data_list = []
-        for file_path in wav_files:
-            sampling_rate, data = wavfile.read(file_path)
-            file_data = {
-                'file_path': file_path,
-                'sampling_rate': sampling_rate,
-                'data': data
-            }
-            data_list.append(file_data)
+        data_list = [{'file_path': fp} for fp in wav_files]
         print(f'Read {len(data_list)} .wav files')
-        self.raw_data_list = data_list  # Save the raw data list for later access
         return data_list
-    
-    def get_raw_audio_data(self):
-        if self.raw_data_list:
-            # Return the first raw audio data from the list
-            return self.raw_data_list[0]['data']
-        else:
-            print("No raw audio data available.")
-            return None
 
     def organize_data(self, data_list):
         organized_data = defaultdict(lambda: defaultdict(list))
@@ -130,37 +113,36 @@ class SSAudioDataModule(L.LightningDataModule):
         print('Created train, validation, and test splits')
         return train_data, val_data, test_data
 
-
     def check_data_leakage(self):
         print("\nChecking data leakage")
-
+    
         all_data = self.train_data + self.val_data + self.test_data
-        flattened_data = [item for sublist in all_data for item in (sublist if isinstance(sublist, list) else [sublist])]
-
-        # Ensure flattened_data is a list of dictionaries with 'file_path' key
-        if not isinstance(flattened_data, list):
-            raise ValueError("flattened_data should be a list")
-        if not all(isinstance(file_data, dict) for file_data in flattened_data):
-            raise ValueError("Each element in flattened_data should be a dictionary")
-        if not all('file_path' in file_data for file_data in flattened_data):
-            raise ValueError("Each dictionary in flattened_data should contain the 'file_path' key")
-
-        file_paths = [file_data['file_path'] for file_data in flattened_data]
+    
+        # Ensure all_data is a list of dictionaries with 'file_path' key
+        if not isinstance(all_data, list):
+            raise ValueError("all_data should be a list")
+        if not all(isinstance(file_data, dict) for file_data in all_data):
+            raise ValueError("Each element in all_data should be a dictionary")
+        if not all('file_path' in file_data for file_data in all_data):
+            raise ValueError("Each dictionary in all_data should contain the 'file_path' key")
+    
+        file_paths = [file_data['file_path'] for file_data in all_data]
         unique_file_paths = set(file_paths)
-
+    
         if len(file_paths) != len(unique_file_paths):
             print("\nData leakage detected: Some samples are present in more than one split!\n")
-
+    
             # Identify and print the duplicated file paths
             from collections import Counter
             file_path_counts = Counter(file_paths)
             duplicated_paths = [file_path for file_path, count in file_path_counts.items() if count > 1]
-
+    
             print("\nDuplicated file paths:")
             for path in duplicated_paths:
                 print(path)
         else:
-            print("\nNo data leakage detected.\n")
+            print("\nNo data leakage detected.")
+
 
     def save_split_indices(self, filepath):
         print("\nSaving split indices...")
@@ -178,14 +160,12 @@ class SSAudioDataModule(L.LightningDataModule):
                 f.write(f'{idx}: {file_data["file_path"]}\n')
 
 
-    def load_split_indices(self, filepath, t_rate):
+    def load_split_indices(self, filepath):
         print("\nLoading split indices from the saved file...\n")
         self.train_data = []
         self.val_data = []
         self.test_data = []
-        self.raw_data_list = [] 
 
-        first_file = True  
         current_split = None
         with open(filepath, 'r') as f:
             for line in f:
@@ -199,20 +179,13 @@ class SSAudioDataModule(L.LightningDataModule):
                 elif line and not line.startswith('Train indices and paths:') and not line.startswith('Validation indices and paths:') and not line.startswith('Test indices and paths:'):
                     if current_split:
                         idx, file_path = line.split(': ', 1)
-                        # Adjust the file path to include the sampling rate
-                        parts = file_path.split('/')
-                        #parts[3] = f'Segments_5s_{t_rate}hz'  # Adjust the directory to reflect the target sampling rate
-                        adjusted_file_path = '/'.join(parts)
-                        sampling_rate, data = wavfile.read(adjusted_file_path)
-                        
+                        adjusted_file_path = file_path  
+                                                
                         file_data = {
-                            'file_path': adjusted_file_path,
-                            'sampling_rate': sampling_rate,
-                            'data': data
+                            'file_path': adjusted_file_path
                         }
                         
-                        self.raw_data_list.append(file_data)  
-                        
+
                         if current_split == 'train':
                             self.train_data.append(file_data)
                         elif current_split == 'val':
@@ -220,12 +193,12 @@ class SSAudioDataModule(L.LightningDataModule):
                         elif current_split == 'test':
                             self.test_data.append(file_data)
 
-        #if not self.prepared:
+        print(f"Number of training samples: {len(self.train_data)}")
+        print(f"Number of validation samples: {len(self.val_data)}")
+        print(f"Number of test samples: {len(self.test_data)}")
+
         self.check_data_leakage()
-        self.get_raw_audio_data()
-
         self.prepared = True
-
 
 
     def prepare_data(self):
@@ -233,7 +206,7 @@ class SSAudioDataModule(L.LightningDataModule):
 
         if os.path.exists(split_indices_path):
             if not self.prepared:  # Check if already prepared to avoid redundant loading
-                self.load_split_indices(split_indices_path, t_rate=self.sample_rate)
+                self.load_split_indices(split_indices_path)
                 self.prepared = True                      
         else:
             if not self.prepared:
@@ -251,7 +224,6 @@ class SSAudioDataModule(L.LightningDataModule):
     
     def setup(self, stage=None):
         pass
-
 
     def train_dataloader(self):
         train_dataset = SSAudioDataset(self.train_data, self.class_to_idx)

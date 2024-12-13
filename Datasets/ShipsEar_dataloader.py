@@ -77,7 +77,7 @@ class ShipsEarDataModule(L.LightningDataModule):
     def setup(self, stage=None):
         # Check if split file exists and load it if available
         if os.path.exists(self.split_file):
-            print(f"Loading splits from {self.split_file}")
+            print(f"\nLoading splits from {self.split_file}")
             folder_lists = self.load_splits()
         
         else:
@@ -143,6 +143,10 @@ class ShipsEarDataModule(L.LightningDataModule):
         self.train_dataset = ShipsEarDataset(segment_lists['train'])
         self.val_dataset = ShipsEarDataset(segment_lists['val'])
         self.test_dataset = ShipsEarDataset(segment_lists['test'])
+
+        print(f"\nNumber of training samples: {len(self.train_dataset)}")
+        print(f"Number of validation samples: {len(self.val_dataset)}")
+        print(f"Number of test samples: {len(self.test_dataset)}\n")
 
     def train_dataloader(self):
         return DataLoader(

@@ -1,9 +1,6 @@
 import torch.nn as nn
 import torch
 from .LogMelFilterBank import MelSpectrogramExtractor  
-import pdb
-from nnAudio import features
-#from .progressive_tokenization import ProgressiveTokenizationModule
 
 class Feature_Extraction_Layer(nn.Module):
     def __init__(self, input_feature, sample_rate=16000, window_length=4096, 
@@ -16,7 +13,6 @@ class Feature_Extraction_Layer(nn.Module):
         self.num_channels = 1
         self.input_feature = input_feature
         
-    
         # Initialize logmelfbank
         win_length = window_length
         n_fft = window_length
@@ -35,17 +31,7 @@ class Feature_Extraction_Layer(nn.Module):
             fmax=fmax
         )
 
-        # Initialize nnAudio MelSpectrogram
-        self.Mel_Spectrogram = features.mel.MelSpectrogram(
-            sr=sample_rate,
-            n_mels=n_mels,
-            win_length=win_length,
-            hop_length=hop_length,
-            n_fft=n_fft,
-            verbose=False
-        )
-
-        self.features = {'LogMelFBank': self.LogMelFBank, 'MelSpec': self.Mel_Spectrogram}
+        self.features = {'LogMelFBank': self.LogMelFBank}
                 
         self.output_dims = None
         self.calculate_output_dims()
@@ -62,9 +48,8 @@ class Feature_Extraction_Layer(nn.Module):
             print(f"Failed to calculate output dimensions: {e}\n")
             self.output_dims = None
             
-
     def forward(self, x):
-        #Extract audio feature
+
         x = self.features[self.input_feature](x) # torch.Size([64, 128, 157])
 
         x = x.unsqueeze(1)

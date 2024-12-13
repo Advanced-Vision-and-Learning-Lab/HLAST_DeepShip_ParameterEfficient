@@ -61,7 +61,7 @@ class AudioDataModule(L.LightningDataModule):
         self.val_files = self._get_wav_files(os.path.join(scenario_path, 'validation'))
         self.test_files = self._get_wav_files(os.path.join(scenario_path, 'test'))
 
-        # Create datasets without normalization
+        # Create datasets 
         self.train_data = AudioDataset(self.train_files, class_mapping=self.class_mapping)
                                        
         self.val_data = AudioDataset(self.val_files, class_mapping=self.class_mapping)
@@ -69,9 +69,9 @@ class AudioDataModule(L.LightningDataModule):
         self.test_data = AudioDataset(self.test_files, class_mapping=self.class_mapping)
 
         # Print the number of samples in each dataset split
-        print(f"Number of training samples: {len(self.train_data)}")
+        print(f"\nNumber of training samples: {len(self.train_data)}")
         print(f"Number of validation samples: {len(self.val_data)}")
-        print(f"Number of test samples: {len(self.test_data)}")
+        print(f"Number of test samples: {len(self.test_data)}\n")
         
     def train_dataloader(self):
         return DataLoader(

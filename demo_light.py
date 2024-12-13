@@ -67,8 +67,6 @@ def main(Params):
     t_batch_size = batch_size['train']
 
     num_workers = Params['num_workers']
-
-    print('\nStarting Experiments...')
     
     run_number = 0
     seed_everything(run_number+1, workers=True)
@@ -76,7 +74,7 @@ def main(Params):
     
     if Params['data_selection'] == 0:
         process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
-        data_module = SSAudioDataModule(new_dir, batch_size=batch_size, sample_rate=Params['sample_rate'], num_workers=num_workers)
+        data_module = SSAudioDataModule(new_dir, batch_size=batch_size, num_workers=num_workers)
         data_module.prepare_data()
         num_classes = 4
         
@@ -135,12 +133,19 @@ def main(Params):
         
     else:
         raise ValueError('Invalid data selection: must be 0, 1, or 2')
-
+    
+    DataName = "DeepShip" if Params['data_selection'] == 0 else \
+             "ShipsEar" if Params['data_selection'] == 1 else \
+             "VTUAD" if Params['data_selection'] == 2 else \
+             "Invalid selection"
+    print('\nStarting Experiments for ' + DataName)
+    numRuns = 1
+    progress_bar=True
+    
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
     all_test_accs = []
-    numRuns = 1
-
+    
     for run_number in range(0, numRuns):
         
         if run_number != 0:
@@ -184,7 +189,7 @@ def main(Params):
             deterministic=False,
             logger=logger,
             log_every_n_steps=20,
-            enable_progress_bar=True,
+            enable_progress_bar=progress_bar,
             accelerator='gpu', 
     	    devices=1,          
         )
