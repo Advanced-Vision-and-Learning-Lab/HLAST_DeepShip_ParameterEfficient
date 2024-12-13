@@ -26,15 +26,16 @@ class ShipsEarDataset(Dataset):
         return signal, label
 
 class ShipsEarDataModule(L.LightningDataModule):
-    def __init__(self, parent_folder, batch_size, num_workers,
+    def __init__(self, parent_folder='./Datasets/ShipsEar', batch_size=None, num_workers=8,
                  train_split=0.7, val_test_split=1/3, random_seed=42, shuffle=False,
                  split_file='shipsear_data_split.txt'):
         super().__init__()
         
+        self.batch_size = batch_size or {'train': 64, 'val': 128, 'test': 128}
+
         self.parent_folder = parent_folder
         self.train_split = train_split
         self.val_test_split = val_test_split
-        self.batch_size = batch_size
         self.num_workers = num_workers
         self.random_seed = random_seed
         self.shuffle = shuffle

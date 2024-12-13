@@ -31,14 +31,15 @@ class AudioDataset(Dataset):
         return data, torch.tensor(label, dtype=torch.long)
     
 class AudioDataModule(L.LightningDataModule):
-    def __init__(self, base_dir, scenario_name, batch_size, num_workers):
+    def __init__(self, base_dir='./Datasets/VTUAD', scenario_name='combined_scenario', 
+                 batch_size=None, num_workers=8):
         """
         Initialize the data module with base directory, scenario name, batch sizes, and number of workers.
         """
         super().__init__()
         self.base_dir = base_dir
         self.scenario_name = scenario_name
-        self.batch_size = batch_size
+        self.batch_size = batch_size or {'train': 64, 'val': 128, 'test': 128}
         self.num_workers = num_workers
         
         # Define the class mapping

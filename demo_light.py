@@ -32,6 +32,7 @@ import zipfile
 from Datasets.Create_Combined_VTUAD import Create_Combined_VTUAD
 from Datasets.VTUAD_DataModule import AudioDataModule
 
+import pdb
 
 def count_trainable_params(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -64,6 +65,7 @@ def main(Params):
     a_shared = Params['adapters_shared']
     
     batch_size = Params['batch_size']
+     
     t_batch_size = batch_size['train']
 
     num_workers = Params['num_workers']
@@ -71,10 +73,10 @@ def main(Params):
     run_number = 0
     seed_everything(run_number+1, workers=True)
     new_dir = Params["new_dir"] 
-    
+
     if Params['data_selection'] == 0:
         process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
-        data_module = SSAudioDataModule(new_dir, batch_size=batch_size, num_workers=num_workers)
+        data_module = SSAudioDataModule(data_dir=new_dir, batch_size=batch_size, num_workers=num_workers)
         data_module.prepare_data()
         num_classes = 4
         
@@ -128,7 +130,8 @@ def main(Params):
         
         chosen_scenario = combined_scenario # chosen_scenario = 'inclusion_2000_exclusion_4000'
               
-        data_module = AudioDataModule(base_dir=base_dir, scenario_name=chosen_scenario, batch_size=batch_size, num_workers=num_workers)
+        data_module = AudioDataModule(base_dir=base_dir, scenario_name=chosen_scenario,
+                                      batch_size=batch_size, num_workers=num_workers)
         num_classes = 5
         
     else:
@@ -176,7 +179,7 @@ def main(Params):
 
         logger = TensorBoardLogger(
             save_dir=(
-                f"tb_logs/{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
+                f"tb_logs/{DataName}_{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
                 f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
                 f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run_number}"
             ),
@@ -217,7 +220,7 @@ def main(Params):
         all_test_accs.append(best_test_acc)
     
         results_filename = (
-        f"tb_logs/{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
+        f"tb_logs/{DataName}_{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
         f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
         f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run_number}/metrics.txt"
         )
@@ -234,7 +237,7 @@ def main(Params):
     overall_std_test_acc = np.std(all_test_accs)
     
     summary_filename = (
-        f"tb_logs/{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
+        f"tb_logs/{DataName}_{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
         f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
         f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/summary_metrics.txt"
     )
@@ -271,7 +274,7 @@ def parse_args():
                         help='input batch size for training (default: 128)')
     parser.add_argument('--test_batch_size', type=int, default=128,
                         help='input batch size for training (default: 128)')
-    parser.add_argument('--num_epochs', type=int, default=100,
+    parser.add_argument('--num_epochs', type=int, default=1,
                         help='Number of epochs to train each model for (default: 50)')
     parser.add_argument('--num_workers', type=int, default=8,
                         help='Number of workers (default: 8)')
@@ -281,11 +284,11 @@ def parse_args():
                         help='Audio feature for extraction')
     parser.add_argument('--patience', type=int, default=25,
                         help='Number of epochs to train each model for (default: 50)')
-    parser.add_argument('--window_length', type=int, default=1024,
+    parser.add_argument('--window_length', type=int, default=2048,
                         help='window length')
-    parser.add_argument('--hop_length', type=int, default=1000,
+    parser.add_argument('--hop_length', type=int, default=512,
                         help='hop length')
-    parser.add_argument('--number_mels', type=int, default=64,
+    parser.add_argument('--number_mels', type=int, default=128,
                         help='number of mels')
     parser.add_argument('--sample_rate', type=int, default=16000,
                         help='Dataset Sample Rate'),
@@ -301,7 +304,6 @@ def parse_args():
                         help='Mode for the histogram layers (default: parallel)')
     args = parser.parse_args()
     return args
-
 
 if __name__ == "__main__":
     args = parse_args()

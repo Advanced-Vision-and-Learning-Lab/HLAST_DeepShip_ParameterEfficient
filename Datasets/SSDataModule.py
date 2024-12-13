@@ -39,10 +39,11 @@ class SSAudioDataset(Dataset):
 
 
 class SSAudioDataModule(L.LightningDataModule):
-    def __init__(self, data_dir, batch_size, num_workers, test_size=0.2, val_size=0.1):
+    def __init__(self, data_dir='./Datasets/DeepShip/Segments_5s_16000hz/', batch_size=None,
+                 num_workers=8, test_size=0.2, val_size=0.1):
         super().__init__()
         self.data_dir = data_dir
-        self.batch_size = batch_size
+        self.batch_size = batch_size or {'train': 64, 'val': 128, 'test': 128}
         self.test_size = test_size
         self.val_size = val_size
         self.class_to_idx = self.create_class_index_mapping()
