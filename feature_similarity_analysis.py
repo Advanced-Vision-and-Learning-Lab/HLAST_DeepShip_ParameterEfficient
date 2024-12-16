@@ -65,7 +65,7 @@ def plot_cosine_similarity(cosine_sim_stats, model_names, output_path='cosine_si
     num_layers = len(cosine_sim_stats)
     layers = np.arange(num_layers)
 
-    plt.figure(figsize=(12, 8))  # Larger figure size for better resolution
+    plt.figure(figsize=(12, 8))  
 
     # Plot each model's similarity values, skipping 'full_fine_tune'
     for model_name in model_names:
@@ -74,7 +74,7 @@ def plot_cosine_similarity(cosine_sim_stats, model_names, output_path='cosine_si
         means = [cosine_sim_stats[layer][model_name]['mean'] for layer in layers]
         stds = [cosine_sim_stats[layer][model_name]['std'] for layer in layers]
         plt.plot(layers, means, label=model_name, marker='o', linestyle='-', linewidth=2)
-        plt.fill_between(layers, np.array(means) - np.array(stds), np.array(means) + np.array(stds), alpha=0.05)
+        plt.fill_between(layers, np.array(means) - np.array(stds), np.array(means) + np.array(stds), alpha=0.15)
 
     # Set plot titles and labels
     #plt.title('Cosine Similarity for Each Layer Across Models', fontsize=20)
@@ -83,16 +83,13 @@ def plot_cosine_similarity(cosine_sim_stats, model_names, output_path='cosine_si
     plt.legend(fontsize=16)
     plt.grid(True)
 
-    # Customize tick label sizes
     plt.xticks(layers, fontsize=16)
     plt.yticks(fontsize=16)
 
-    # Save the plot with high resolution
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
 
 
-# Define dataset-specific configurations
 DATASET_CONFIG = {
     'DeepShip': {
         'process_data': process_deepship_data,
@@ -108,7 +105,119 @@ DATASET_CONFIG = {
     }
 }
 
-TRAINING_MODES = ['full_fine_tune', 'linear_probing', 'adapters', 'histogram']
+MODE_CONFIG = {
+    'full_fine_tune': {
+        'model': 'AST',
+        'histograms_shared': True,
+        'adapters_shared': True,
+        'data_selection': 0,
+        'numBins': 16,
+        'RR': 64,
+        'train_mode': 'full_fine_tune',
+        'use_pretrained': True,
+        'train_batch_size': 64,
+        'val_batch_size': 128,
+        'test_batch_size': 128,
+        'num_epochs': 1,
+        'num_workers': 8,
+        'lr': 1e-5,
+        'audio_feature': 'LogMelFBank',
+        'patience': 20,
+        'window_length': 2048,
+        'hop_length': 512,
+        'number_mels': 128,
+        'sample_rate': 16000,
+        'segment_length': 5,
+        'adapter_location': 'None',
+        'adapter_mode': 'None',
+        'histogram_location': 'None',
+        'histogram_mode': 'None'
+    },
+    'linear_probing': {
+        'model': 'AST',
+        'histograms_shared': True,
+        'adapters_shared': True,
+        'data_selection': 0,
+        'numBins': 16,
+        'RR': 64,
+        'train_mode': 'linear_probing',
+        'use_pretrained': True,
+        'train_batch_size': 64,
+        'val_batch_size': 128,
+        'test_batch_size': 128,
+        'num_epochs': 1,
+        'num_workers': 8,
+        'lr': 1e-3,
+        'audio_feature': 'LogMelFBank',
+        'patience': 20,
+        'window_length': 2048,
+        'hop_length': 512,
+        'number_mels': 128,
+        'sample_rate': 16000,
+        'segment_length': 5,
+        'adapter_location': 'None',
+        'adapter_mode': 'None',
+        'histogram_location': 'None',
+        'histogram_mode': 'None'
+    },
+    'adapters': {
+        'model': 'AST',
+        'histograms_shared': True,
+        'adapters_shared': True,
+        'data_selection': 0,
+        'numBins': 16,
+        'RR': 64,
+        'train_mode': 'adapters',
+        'use_pretrained': True,
+        'train_batch_size': 64,
+        'val_batch_size': 128,
+        'test_batch_size': 128,
+        'num_epochs': 1,
+        'num_workers': 8,
+        'lr': 1e-3,
+        'audio_feature': 'LogMelFBank',
+        'patience': 20,
+        'window_length': 2048,
+        'hop_length': 512,
+        'number_mels': 128,
+        'sample_rate': 16000,
+        'segment_length': 5,
+        'adapter_location': 'mhsa',
+        'adapter_mode': 'parallel',
+        'histogram_location': 'None',
+        'histogram_mode': 'None'
+    },
+    'histogram': {
+        'model': 'AST',
+        'histograms_shared': True,
+        'adapters_shared': True,
+        'data_selection': 0,
+        'numBins': 16,
+        'RR': 64,
+        'train_mode': 'histogram',
+        'use_pretrained': True,
+        'train_batch_size': 64,
+        'val_batch_size': 128,
+        'test_batch_size': 128,
+        'num_epochs': 1,
+        'num_workers': 8,
+        'lr': 1e-3,
+        'audio_feature': 'LogMelFBank',
+        'patience': 20,
+        'window_length': 2048,
+        'hop_length': 512,
+        'number_mels': 128,
+        'sample_rate': 16000,
+        'segment_length': 5,
+        'adapter_location': 'None',
+        'adapter_mode': 'None',
+        'histogram_location': 'mhsa',
+        'histogram_mode': 'parallel'
+    }
+}
+
+# Define TRAINING_MODES based on MODE_CONFIG keys
+TRAINING_MODES = list(MODE_CONFIG.keys())
 
 layer_outputs = {}
 
@@ -128,6 +237,7 @@ def register_hooks(model):
     return hooks
 
 # Extract features from model layers
+# Setting num_batches=10 will process only the first 10 batches 
 def extract_features(model, dataloader, device, num_batches=None):
     model.to(device)
     model.eval()
@@ -136,12 +246,18 @@ def extract_features(model, dataloader, device, num_batches=None):
 
     hooks = register_hooks(model)
 
+    total_samples = 0
+    total_batches = 0
+
     with torch.no_grad():
         for i, batch in enumerate(dataloader):
             if num_batches is not None and i >= num_batches:
                 break
 
             inputs, _ = batch
+            total_samples += inputs.size(0)  # Add the number of samples in this batch
+            total_batches += 1  # Increment the batch count
+
             inputs = inputs.to(device)
             _ = model(inputs)
 
@@ -152,9 +268,8 @@ def extract_features(model, dataloader, device, num_batches=None):
     for hook in hooks:
         hook.remove()
 
-    return features
+    return features, total_samples, total_batches
 
-# Load model with the required arguments
 def load_model_with_args(model_path, model_name, num_classes, run_number, params):
     try:
         model = LitModel.load_from_checkpoint(
@@ -170,141 +285,44 @@ def load_model_with_args(model_path, model_name, num_classes, run_number, params
         print(f"Error loading model '{model_name}' from '{model_path}': {e}")
         return None
 
-# Configuration for each training mode
-MODE_CONFIG = {
-    'full_fine_tune': {
-        'model': 'AST',
-        'histograms_shared': True,
-        'adapters_shared': True,
-        'data_selection': 1,
-        'numBins': 16,
-        'RR': 128,
-        'train_mode': 'full_fine_tune',
-        'use_pretrained': True,
-        'train_batch_size': 64,
-        'val_batch_size': 128,
-        'test_batch_size': 128,
-        'num_epochs': 5,
-        'num_workers': 8,
-        'lr': 1e-5,
-        'audio_feature': 'LogMelFBank',
-        'patience': 20,
-        'window_length': 2048,
-        'hop_length': 512,
-        'number_mels': 128,
-        'sample_rate': 16000,
-        'segment_length': 5,
-        'adapter_location': 'None',
-        'adapter_mode': 'None',
-        'histogram_location': 'None',
-        'histogram_mode': 'None'
-    },
-    'linear_probing': {
-        'model': 'AST',
-        'histograms_shared': True,
-        'adapters_shared': True,
-        'data_selection': 1,
-        'numBins': 16,
-        'RR': 128,
-        'train_mode': 'linear_probing',
-        'use_pretrained': True,
-        'train_batch_size': 64,
-        'val_batch_size': 128,
-        'test_batch_size': 128,
-        'num_epochs': 5,
-        'num_workers': 8,
-        'lr': 1e-3,
-        'audio_feature': 'LogMelFBank',
-        'patience': 20,
-        'window_length': 2048,
-        'hop_length': 512,
-        'number_mels': 128,
-        'sample_rate': 16000,
-        'segment_length': 5,
-        'adapter_location': 'None',
-        'adapter_mode': 'None',
-        'histogram_location': 'None',
-        'histogram_mode': 'None'
-    },
-    'adapters': {
-        'model': 'AST',
-        'histograms_shared': True,
-        'adapters_shared': True,
-        'data_selection': 1,
-        'numBins': 16,
-        'RR': 128,
-        'train_mode': 'adapters',
-        'use_pretrained': True,
-        'train_batch_size': 64,
-        'val_batch_size': 128,
-        'test_batch_size': 128,
-        'num_epochs': 5,
-        'num_workers': 8,
-        'lr': 1e-3,
-        'audio_feature': 'LogMelFBank',
-        'patience': 20,
-        'window_length': 2048,
-        'hop_length': 512,
-        'number_mels': 128,
-        'sample_rate': 16000,
-        'segment_length': 5,
-        'adapter_location': 'mhsa',
-        'adapter_mode': 'parallel',
-        'histogram_location': 'None',
-        'histogram_mode': 'None'
-    },
-    'histogram': {
-        'model': 'AST',
-        'histograms_shared': True,
-        'adapters_shared': True,
-        'data_selection': 1,
-        'numBins': 16,
-        'RR': 128,
-        'train_mode': 'histogram',
-        'use_pretrained': True,
-        'train_batch_size': 64,
-        'val_batch_size': 128,
-        'test_batch_size': 128,
-        'num_epochs': 5,
-        'num_workers': 8,
-        'lr': 1e-3,
-        'audio_feature': 'LogMelFBank',
-        'patience': 20,
-        'window_length': 2048,
-        'hop_length': 512,
-        'number_mels': 128,
-        'sample_rate': 16000,
-        'segment_length': 5,
-        'adapter_location': 'None',
-        'adapter_mode': 'None',
-        'histogram_location': 'mhsa',
-        'histogram_mode': 'parallel'
-    }
-}
-
 # Process each dataset
 def process_dataset(dataset_name, dataset_folders, tb_logs_base_dir, features_base_dir, device, num_batches=None):
     print(f"\nProcessing Dataset: {dataset_name}")
 
     model_dirs = {}
-    for folder in dataset_folders:
-        folder_path = os.path.join(tb_logs_base_dir, folder)
-        for mode in TRAINING_MODES:
-            if mode.lower() in folder.lower():
-                model_dirs[mode] = folder_path
-                break
+    for mode in TRAINING_MODES:
+        # Find folders that include the mode name
+        matching_folders = [
+            folder for folder in dataset_folders
+            if mode.lower() in folder.lower()
+        ]
+        if not matching_folders:
+            print(f"Warning: No folder found for mode '{mode}' in dataset '{dataset_name}'. Skipping this mode.")
+            continue
+        # Select the first matching folder (unique per mode)
+        selected_folder = matching_folders[0]
+        model_dirs[mode] = os.path.join(tb_logs_base_dir, selected_folder)
 
     if 'full_fine_tune' not in model_dirs:
         print(f"Error: Reference model 'full_fine_tune' not found for dataset '{dataset_name}'. Skipping.")
         return
 
     model_names = list(model_dirs.keys())
+    
+    # === Print Selected Folder Names ===
+    print(f"Selected folders for dataset '{dataset_name}':")
+    for mode, folder_path in model_dirs.items():
+        folder_name = os.path.basename(folder_path)
+        print(f"  {mode}: {folder_name}")
+    # ===================================
+
     print(f"Found models: {model_names}")
 
     try:
         data_module_class = DATASET_CONFIG[dataset_name]['DataModule']
         data_module = data_module_class()
-        data_module.setup(stage='test')
+        data_module.prepare_data()        # Ensure data is prepared
+        data_module.setup(stage='test')   # Existing setup call
         dataloader = data_module.test_dataloader()
     except Exception as e:
         print(f"Error initializing data module for dataset '{dataset_name}': {e}. Skipping.")
@@ -336,22 +354,45 @@ def process_dataset(dataset_name, dataset_folders, tb_logs_base_dir, features_ba
             print(f"No configuration found for training mode '{model_name}'. Skipping.")
             continue
 
+        # === Dataset-Specific Parameter Adjustment ===
+        if dataset_name == 'VTUAD':
+            mode_config = mode_config.copy()  # Create a copy to avoid mutating the original config
+            mode_config['sample_rate'] = 32000
+            mode_config['segment_length'] = 1
+            print(f"Adjusted parameters for VTUAD: sample_rate={mode_config['sample_rate']}, segment_length={mode_config['segment_length']}")
+        # ============================================
+
+        # === Set Number of Classes Based on Dataset ===
+        if dataset_name == 'DeepShip':
+            num_classes = 4
+        else:
+            num_classes = 5
+        # =============================================
+
         try:
             # Create an args-like object using SimpleNamespace
             args = SimpleNamespace(**mode_config)
             # Instantiate Parameters with mode-specific configuration
             params = Parameters(args)
-            model = load_model_with_args(model_path, model_name, 5, 0, params)
+            
+            # SET CORRECT NUMBER OF CLASSES HERE 
+            model = load_model_with_args(model_path, model_name, num_classes, 0, params)
             if not model:
                 continue
-            features = extract_features(model, dataloader, device, num_batches=num_batches)
+
+            features, total_samples, total_batches = extract_features(
+                model, dataloader, device, num_batches=num_batches
+            )
             if features:
                 transposed_features = list(zip(*features))
                 features_dict[model_name] = transposed_features
+
+            # Print the number of samples and batches used
+            print(f"Model '{model_name}': {total_samples} samples from {total_batches} batches used for similarity analysis.")
         except Exception as e:
             print(f"Error processing model '{model_name}': {e}. Skipping.")
 
-    # After processing all models, compute cosine similarity if 'full_fine_tune' is present
+    # After processing all models, compute cosine similarity 
     if 'full_fine_tune' in features_dict:
         cosine_sim_stats = compute_layer_cosine_similarity(features_dict, model_names)
         output_plot_path = os.path.join(features_base_dir, f"{dataset_name}_cosine_similarity_plot.png")
@@ -376,11 +417,10 @@ def traverse_tb_logs(tb_logs_base_dir):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Run histogram experiments with mode-specific parameters')
-    # Define any additional global arguments here if needed
     return parser.parse_args()
 
-
 def main():
+
     tb_logs_base_dir = 'tb_logs'
     features_base_dir = os.path.join('features', 'similarity_plots')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -422,6 +462,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

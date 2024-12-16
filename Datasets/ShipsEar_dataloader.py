@@ -75,6 +75,51 @@ class ShipsEarDataModule(L.LightningDataModule):
                     
         return folder_lists
 
+    def check_data_leakage(self):
+        """
+        Checks for data leakage by ensuring that:
+        1. No recording (subfolder) appears in more than one split (train, val, test).
+        2. No segment (file) is duplicated across splits.
+        """
+        try:
+            folder_lists = self.load_splits()
+        except FileNotFoundError:
+            print("Split file not found. Cannot check data leakage.")
+            return
+
+        splits = ['train', 'val', 'test']
+        recordings = {split: set() for split in splits}
+        segments = {split: set() for split in splits}
+
+        # Collect all folder paths and segment file names for each split
+        for split in splits:
+            for folder_path, _ in folder_lists[split]:
+                recordings[split].add(folder_path)
+                for root, dirs, files in os.walk(folder_path):
+                    for file in files:
+                        if file.endswith('.wav'):
+                            segments[split].add(file)  # Assuming unique filenames
+
+        # **Recording-Level Check**
+        all_recordings = []
+        for split in splits:
+            all_recordings.extend(recordings[split])
+        if len(all_recordings) != len(set(all_recordings)):
+            print("Data leakage detected at the RECORDING level.")
+            return
+        else:
+            print("No data leakage detected at the RECORDING level.")
+
+        # **Segment-Level Check**
+        all_segments = []
+        for split in splits:
+            all_segments.extend(segments[split])
+        if len(all_segments) != len(set(all_segments)):
+            print("Data leakage detected at the SEGMENT level.")
+        else:
+            print("No data leakage detected at the SEGMENT level.")
+
+       
     def setup(self, stage=None):
         # Check if split file exists and load it if available
         if os.path.exists(self.split_file):
@@ -148,6 +193,8 @@ class ShipsEarDataModule(L.LightningDataModule):
         print(f"\nNumber of training samples: {len(self.train_dataset)}")
         print(f"Number of validation samples: {len(self.val_dataset)}")
         print(f"Number of test samples: {len(self.test_dataset)}\n")
+        
+        self.check_data_leakage()
 
     def train_dataloader(self):
         return DataLoader(

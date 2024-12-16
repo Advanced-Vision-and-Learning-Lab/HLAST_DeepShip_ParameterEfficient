@@ -43,7 +43,7 @@ def save_learning_curves(log_dir, output_path):
         plt.plot(val_loss, label='Validation Loss', color='orange', lw=3)
         plt.xlabel('Epochs', fontsize=15)
         plt.ylabel('Loss', fontsize=15)
-        plt.title('Learning Curves', fontsize=18)
+        #plt.title('Learning Curves', fontsize=18)
         plt.legend(loc="best", fontsize=12)
         plt.grid(True)
         plt.xticks(fontsize=12)

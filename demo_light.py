@@ -142,8 +142,9 @@ def main(Params):
              "VTUAD" if Params['data_selection'] == 2 else \
              "Invalid selection"
     print('\nStarting Experiments for ' + DataName)
-    numRuns = 1
-    progress_bar=True
+    
+    numRuns = 3
+    progress_bar=False
     
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
