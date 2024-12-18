@@ -96,3 +96,4 @@ widgetsnbextension==4.0.10
 wordcloud==1.9.3
 yarl==1.9.4
 ydata-profiling==4.7.0
+h5py==3.12.1

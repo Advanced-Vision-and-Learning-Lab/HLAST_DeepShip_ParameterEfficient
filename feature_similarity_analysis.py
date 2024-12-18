@@ -7,6 +7,8 @@ from functools import partial
 from sklearn.metrics.pairwise import cosine_similarity
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import argparse
+from types import SimpleNamespace
+import h5py
 
 from Demo_Parameters import Parameters
 from Utils.LitModel import LitModel
@@ -22,73 +24,6 @@ from Datasets.ShipsEar_dataloader import ShipsEarDataModule
 # VTUAD Imports
 from Datasets.Create_Combined_VTUAD import Create_Combined_VTUAD
 from Datasets.VTUAD_DataModule import AudioDataModule
-
-from types import SimpleNamespace
-
-def compute_layer_cosine_similarity(features_dict, model_names, num_layers=12):
-    """
-    Compute cosine similarity of feature maps for each sample in each batch,
-    compared to the full fine-tune model, and return mean and std.
-    """
-    cosine_similarities = {layer: {model: [] for model in model_names if model != 'full_fine_tune'} for layer in range(num_layers)}
-
-    reference_model = 'full_fine_tune'
-
-    for layer in range(num_layers):
-        ref_features = features_dict[reference_model][layer]
-        for model_name in model_names:
-            if model_name == reference_model:
-                continue
-            comp_features = features_dict[model_name][layer]
-            # Compute cosine similarity for each sample
-            for ref_sample, comp_sample in zip(ref_features, comp_features):
-                ref_sample_np = ref_sample.view(1, -1).cpu().numpy()
-                comp_sample_np = comp_sample.view(1, -1).cpu().numpy()
-                cos_sim = cosine_similarity(ref_sample_np, comp_sample_np)[0][0]
-                cosine_similarities[layer][model_name].append(cos_sim)
-
-    # Compute mean and std for each layer and model
-    cosine_sim_stats = {layer: {} for layer in range(num_layers)}
-    for layer in range(num_layers):
-        for model in cosine_similarities[layer]:
-            similarities = cosine_similarities[layer][model]
-            mean = np.mean(similarities) if similarities else 0
-            std = np.std(similarities) if similarities else 0
-            cosine_sim_stats[layer][model] = {'mean': mean, 'std': std}
-
-    return cosine_sim_stats
-
-def plot_cosine_similarity(cosine_sim_stats, model_names, output_path='cosine_similarity_plot.png'):
-    """
-    Plot the cosine similarity values for each layer across models (excluding full_fine_tune) and save the plot.
-    """
-    num_layers = len(cosine_sim_stats)
-    layers = np.arange(num_layers)
-
-    plt.figure(figsize=(12, 8))  
-
-    # Plot each model's similarity values, skipping 'full_fine_tune'
-    for model_name in model_names:
-        if model_name == 'full_fine_tune':
-            continue
-        means = [cosine_sim_stats[layer][model_name]['mean'] for layer in layers]
-        stds = [cosine_sim_stats[layer][model_name]['std'] for layer in layers]
-        plt.plot(layers, means, label=model_name, marker='o', linestyle='-', linewidth=2)
-        plt.fill_between(layers, np.array(means) - np.array(stds), np.array(means) + np.array(stds), alpha=0.15)
-
-    # Set plot titles and labels
-    #plt.title('Cosine Similarity for Each Layer Across Models', fontsize=20)
-    plt.xlabel('Layer Number', fontsize=18)
-    plt.ylabel('Cosine Similarity', fontsize=18)
-    plt.legend(fontsize=16)
-    plt.grid(True)
-
-    plt.xticks(layers, fontsize=16)
-    plt.yticks(fontsize=16)
-
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    plt.close()
-
 
 DATASET_CONFIG = {
     'DeepShip': {
@@ -128,9 +63,9 @@ MODE_CONFIG = {
         'number_mels': 128,
         'sample_rate': 16000,
         'segment_length': 5,
-        'adapter_location': 'None',
-        'adapter_mode': 'None',
-        'histogram_location': 'None',
+        'adapter_location': 'None',         
+        'adapter_mode': 'None',             
+        'histogram_location': 'None',      
         'histogram_mode': 'None'
     },
     'linear_probing': {
@@ -209,23 +144,20 @@ MODE_CONFIG = {
         'number_mels': 128,
         'sample_rate': 16000,
         'segment_length': 5,
-        'adapter_location': 'None',
-        'adapter_mode': 'None',
+        'adapter_location': 'None',        
+        'adapter_mode': 'None',             
         'histogram_location': 'mhsa',
         'histogram_mode': 'parallel'
     }
 }
 
-# Define TRAINING_MODES based on MODE_CONFIG keys
 TRAINING_MODES = list(MODE_CONFIG.keys())
 
 layer_outputs = {}
 
-# Hook function to capture layer outputs
 def hook_fn(layer_name, module, input, output):
     layer_outputs[layer_name] = output
 
-# Register hooks for each layer
 def register_hooks(model):
     hooks = []
     try:
@@ -236,16 +168,22 @@ def register_hooks(model):
         print("Error: Model architecture does not match expected structure for hook registration.")
     return hooks
 
-# Extract features from model layers
-# Setting num_batches=10 will process only the first 10 batches 
-def extract_features(model, dataloader, device, num_batches=None):
+
+def extract_features(model, dataloader, device, h5_file_path, num_batches=None):
+    """
+    Extract features and store them incrementally in an HDF5 file to save memory.
+    """
     model.to(device)
     model.eval()
-    features = []
     layer_outputs.clear()
-
     hooks = register_hooks(model)
 
+    if os.path.exists(h5_file_path):
+        os.remove(h5_file_path)
+
+    # We will determine feature_dim from the first batch
+    h5_file = h5py.File(h5_file_path, 'w')
+    dataset = None
     total_samples = 0
     total_batches = 0
 
@@ -255,20 +193,137 @@ def extract_features(model, dataloader, device, num_batches=None):
                 break
 
             inputs, _ = batch
-            total_samples += inputs.size(0)  # Add the number of samples in this batch
-            total_batches += 1  # Increment the batch count
+            batch_size = inputs.size(0)
+            total_samples += batch_size
+            total_batches += 1
 
             inputs = inputs.to(device)
             _ = model(inputs)
 
+            # layer_outputs: dict of {layer_name: output}
+            # Convert to a consistent format: [num_layers, batch_size, feature_dim]
+            # Currently: batch_features is [[sample for each sample in batch] for each layer]
             batch_features = [[sample.clone() for sample in value] for value in layer_outputs.values()]
-            if batch_features:
-                features.extend(zip(*batch_features))
+
+            # We have: len(batch_features) = num_layers
+            # Each batch_features[i] is a list of length batch_size, each a tensor
+            # Flatten each sample and stack
+            num_layers = len(batch_features)
+            # Assume all samples have the same shape
+            with torch.no_grad():
+                sample_flat = batch_features[0][0].view(1, -1)  # Flatten example
+                feature_dim = sample_flat.size(-1)
+
+            # Create a NumPy array for the entire batch
+            # Shape: (batch_size, num_layers, feature_dim)
+            batch_array = np.zeros((batch_size, num_layers, feature_dim), dtype=np.float32)
+
+            for layer_idx, layer_data in enumerate(batch_features):
+                for sample_idx, sample_tensor in enumerate(layer_data):
+                    # Flatten and move to CPU numpy
+                    sample_np = sample_tensor.view(1, -1).cpu().numpy().astype(np.float32)
+                    batch_array[sample_idx, layer_idx, :] = sample_np
+
+            # Initialize the dataset if this is the first batch
+            if dataset is None:
+                maxshape = (None, num_layers, feature_dim)
+                dataset = h5_file.create_dataset('features', data=batch_array,
+                                                 maxshape=maxshape, chunks=(64, num_layers, feature_dim))
+            else:
+                # Append new batch
+                old_size = dataset.shape[0]
+                new_size = old_size + batch_size
+                dataset.resize(new_size, axis=0)
+                dataset[old_size:new_size, :, :] = batch_array
 
     for hook in hooks:
         hook.remove()
 
-    return features, total_samples, total_batches
+    h5_file.close()
+    return total_samples, total_batches
+
+
+def compute_layer_cosine_similarity(h5_files_dict, model_names, output_path='cosine_similarity_plot.png'):
+    """
+    Compute cosine similarity from h5 files (stored for each model).
+    We assume each file has a dataset 'features' of shape (num_samples, num_layers, feature_dim).
+    We only load in chunks if needed to prevent memory issues.
+    """
+    reference_model = 'full_fine_tune'
+    if reference_model not in h5_files_dict:
+        print("Reference model (full_fine_tune) not found. Cannot compute similarity.")
+        return
+
+    # Open reference model file to determine dimensions
+    with h5py.File(h5_files_dict[reference_model], 'r') as f_ref:
+        ref_data = f_ref['features']
+        num_samples, num_layers, feature_dim = ref_data.shape
+
+    # We'll compute similarities layer by layer
+    cosine_similarities = {layer: {m: [] for m in model_names if m != reference_model} for layer in range(num_layers)}
+
+    # Load reference model data fully into memory (optional optimization: chunk if very large)
+    with h5py.File(h5_files_dict[reference_model], 'r') as f_ref:
+        ref_data = f_ref['features'][:]  # shape (num_samples, num_layers, feature_dim)
+
+    for model_name in model_names:
+        if model_name == reference_model:
+            continue
+        with h5py.File(h5_files_dict[model_name], 'r') as f_comp:
+            comp_data = f_comp['features'][:]  # shape (num_samples, num_layers, feature_dim)
+
+        # Compute similarity per layer
+        # We'll do vectorized cosine similarity if possible
+        # Cosine similarity: (A·B) / (||A||*||B||)
+        # Here: A and B are (num_samples, feature_dim)
+        for layer in range(num_layers):
+            A = ref_data[:, layer, :]  # (num_samples, feature_dim)
+            B = comp_data[:, layer, :] # (num_samples, feature_dim)
+
+            # Normalize
+            A_norm = A / (np.linalg.norm(A, axis=1, keepdims=True) + 1e-9)
+            B_norm = B / (np.linalg.norm(B, axis=1, keepdims=True) + 1e-9)
+
+            # Compute element-wise cos sim
+            cos_sims = np.sum(A_norm * B_norm, axis=1)  # (num_samples,)
+            cosine_similarities[layer][model_name] = cos_sims.tolist()
+
+    # Compute mean/std
+    cosine_sim_stats = {layer: {} for layer in range(num_layers)}
+    for layer in range(num_layers):
+        for model in cosine_similarities[layer]:
+            sims = cosine_similarities[layer][model]
+            mean = np.mean(sims) if sims else 0
+            std = np.std(sims) if sims else 0
+            cosine_sim_stats[layer][model] = {'mean': mean, 'std': std}
+
+    # Plot the results
+    plot_cosine_similarity(cosine_sim_stats, model_names, output_path=output_path)
+
+
+def plot_cosine_similarity(cosine_sim_stats, model_names, output_path='cosine_similarity_plot.png'):
+    num_layers = len(cosine_sim_stats)
+    layers = np.arange(num_layers)
+
+    plt.figure(figsize=(12, 8))  
+    for model_name in model_names:
+        if model_name == 'full_fine_tune':
+            continue
+        means = [cosine_sim_stats[layer][model_name]['mean'] for layer in layers]
+        stds = [cosine_sim_stats[layer][model_name]['std'] for layer in layers]
+        plt.plot(layers, means, label=model_name, marker='o', linestyle='-', linewidth=2)
+        plt.fill_between(layers, np.array(means) - np.array(stds), np.array(means) + np.array(stds), alpha=0.15)
+
+    plt.xlabel('Layer Number', fontsize=18)
+    plt.ylabel('Cosine Similarity', fontsize=18)
+    plt.legend(fontsize=16)
+    plt.grid(True)
+    plt.xticks(layers, fontsize=16)
+    plt.yticks(fontsize=16)
+
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
 
 def load_model_with_args(model_path, model_name, num_classes, run_number, params):
     try:
@@ -285,54 +340,84 @@ def load_model_with_args(model_path, model_name, num_classes, run_number, params
         print(f"Error loading model '{model_name}' from '{model_path}': {e}")
         return None
 
-# Process each dataset
 def process_dataset(dataset_name, dataset_folders, tb_logs_base_dir, features_base_dir, device, num_batches=None):
     print(f"\nProcessing Dataset: {dataset_name}")
 
     model_dirs = {}
     for mode in TRAINING_MODES:
-        # Find folders that include the mode name
+        mode_config = MODE_CONFIG.get(mode, {}).copy()
+        search_substrings = []
+        
+        if mode_config.get('adapters_shared') is not None:
+            search_substrings.append(f"AdaptShared{mode_config['adapters_shared']}")
+        if mode_config.get('histograms_shared') is not None:
+            search_substrings.append(f"Shared{mode_config['histograms_shared']}")
+        if mode_config.get('RR') is not None:
+            search_substrings.append(f"RR{mode_config['RR']}")
+        if mode_config.get('numBins') is not None:
+            search_substrings.append(f"{mode_config['numBins']}bins")
+        if mode_config.get('adapter_location') != 'None':
+            search_substrings.append(mode_config['adapter_location'])
+        if mode_config.get('adapter_mode') != 'None':
+            search_substrings.append(mode_config['adapter_mode'])
+        if mode_config.get('histogram_location') != 'None':
+            search_substrings.append(mode_config['histogram_location'])
+        if mode_config.get('histogram_mode') != 'None':
+            search_substrings.append(mode_config['histogram_mode'])
+
         matching_folders = [
             folder for folder in dataset_folders
-            if mode.lower() in folder.lower()
+            if mode.lower() in folder.lower() and all(sub in folder for sub in search_substrings)
         ]
+
         if not matching_folders:
             print(f"Warning: No folder found for mode '{mode}' in dataset '{dataset_name}'. Skipping this mode.")
             continue
-        # Select the first matching folder (unique per mode)
+
+        if dataset_name == 'VTUAD':
+            mode_config['sample_rate'] = 32000
+            mode_config['segment_length'] = 1
+            print(f"Adjusted parameters for VTUAD: sample_rate={mode_config['sample_rate']}, segment_length={mode_config['segment_length']}")
+
         selected_folder = matching_folders[0]
-        model_dirs[mode] = os.path.join(tb_logs_base_dir, selected_folder)
+        model_dirs[mode] = {
+            'folder_path': os.path.join(tb_logs_base_dir, selected_folder),
+            'mode_config': mode_config
+        }
 
     if 'full_fine_tune' not in model_dirs:
         print(f"Error: Reference model 'full_fine_tune' not found for dataset '{dataset_name}'. Skipping.")
         return
 
     model_names = list(model_dirs.keys())
-    
-    # === Print Selected Folder Names ===
     print(f"Selected folders for dataset '{dataset_name}':")
-    for mode, folder_path in model_dirs.items():
-        folder_name = os.path.basename(folder_path)
+    for mode, info in model_dirs.items():
+        folder_name = os.path.basename(info['folder_path'])
         print(f"  {mode}: {folder_name}")
-    # ===================================
-
     print(f"Found models: {model_names}")
 
     try:
         data_module_class = DATASET_CONFIG[dataset_name]['DataModule']
         data_module = data_module_class()
-        data_module.prepare_data()        # Ensure data is prepared
-        data_module.setup(stage='test')   # Existing setup call
+        data_module.prepare_data()
+        data_module.setup(stage='test')
         dataloader = data_module.test_dataloader()
     except Exception as e:
         print(f"Error initializing data module for dataset '{dataset_name}': {e}. Skipping.")
         return
 
-    features_dict = {}
+    # Instead of storing in memory, we will save paths to h5 files
+    h5_files_dict = {}
 
     for model_name in model_names:
-        model_dir = model_dirs[model_name]
-        run_folders = [d for d in os.listdir(model_dir) if os.path.isdir(os.path.join(model_dir, d)) and d.startswith('Run_')]
+        model_info = model_dirs[model_name]
+        model_dir = model_info['folder_path']
+        mode_config = model_info['mode_config']
+
+        run_folders = [
+            d for d in os.listdir(model_dir)
+            if os.path.isdir(os.path.join(model_dir, d)) and d.startswith('Run_')
+        ]
         if not run_folders:
             print(f"No run folders found in '{model_dir}'. Skipping model '{model_name}'.")
             continue
@@ -348,58 +433,38 @@ def process_dataset(dataset_name, dataset_folders, tb_logs_base_dir, features_ba
         model_path = ckpt_files[0]
         print(f"Loading model '{model_name}' from '{model_path}'...")
 
-        # Retrieve mode-specific parameters
-        mode_config = MODE_CONFIG.get(model_name, None)
-        if mode_config is None:
-            print(f"No configuration found for training mode '{model_name}'. Skipping.")
-            continue
-
-        # === Dataset-Specific Parameter Adjustment ===
-        if dataset_name == 'VTUAD':
-            mode_config = mode_config.copy()  # Create a copy to avoid mutating the original config
-            mode_config['sample_rate'] = 32000
-            mode_config['segment_length'] = 1
-            print(f"Adjusted parameters for VTUAD: sample_rate={mode_config['sample_rate']}, segment_length={mode_config['segment_length']}")
-        # ============================================
-
-        # === Set Number of Classes Based on Dataset ===
         if dataset_name == 'DeepShip':
             num_classes = 4
         else:
             num_classes = 5
-        # =============================================
 
+        args = SimpleNamespace(**mode_config)
+        params = Parameters(args)
+
+        model = load_model_with_args(model_path, model_name, num_classes, 0, params)
+        if not model:
+            continue
+
+        # H5 file path for this model
+        h5_file_path = os.path.join(features_base_dir, f"{dataset_name}_{model_name}_features.h5")
+        
         try:
-            # Create an args-like object using SimpleNamespace
-            args = SimpleNamespace(**mode_config)
-            # Instantiate Parameters with mode-specific configuration
-            params = Parameters(args)
-            
-            # SET CORRECT NUMBER OF CLASSES HERE 
-            model = load_model_with_args(model_path, model_name, num_classes, 0, params)
-            if not model:
-                continue
-
-            features, total_samples, total_batches = extract_features(
-                model, dataloader, device, num_batches=num_batches
+            total_samples, total_batches = extract_features(
+                model, dataloader, device, h5_file_path, num_batches=num_batches
             )
-            if features:
-                transposed_features = list(zip(*features))
-                features_dict[model_name] = transposed_features
-
-            # Print the number of samples and batches used
-            print(f"Model '{model_name}': {total_samples} samples from {total_batches} batches used for similarity analysis.")
+            h5_files_dict[model_name] = h5_file_path
+            print(f"Model '{model_name}': {total_samples} samples from {total_batches} batches used. Features saved to '{h5_file_path}'.")
         except Exception as e:
             print(f"Error processing model '{model_name}': {e}. Skipping.")
 
-    # After processing all models, compute cosine similarity 
-    if 'full_fine_tune' in features_dict:
-        cosine_sim_stats = compute_layer_cosine_similarity(features_dict, model_names)
+    # Compute similarity from h5 files
+    if 'full_fine_tune' in h5_files_dict:
         output_plot_path = os.path.join(features_base_dir, f"{dataset_name}_cosine_similarity_plot.png")
-        plot_cosine_similarity(cosine_sim_stats, model_names, output_path=output_plot_path)
+        compute_layer_cosine_similarity(h5_files_dict, model_names, output_path=output_plot_path)
         print(f"Cosine similarity plot saved to '{output_plot_path}'.")
     else:
         print(f"Reference model 'full_fine_tune' features not available for dataset '{dataset_name}'. Skipping cosine similarity computation.")
+
 
 def traverse_tb_logs(tb_logs_base_dir):
     dataset_folders = {}
@@ -408,7 +473,7 @@ def traverse_tb_logs(tb_logs_base_dir):
         if os.path.isdir(entry_path):
             dataset_name = entry.split('_')[0]
             if dataset_name not in DATASET_CONFIG:
-                print(f"Warning: Dataset '{dataset_name}' is not recognized. Skipping folder '{entry}'.")
+                print(f"Warning: Dataset '{dataset_name}' not recognized. Skipping folder '{entry}'.")
                 continue
             if dataset_name not in dataset_folders:
                 dataset_folders[dataset_name] = []
@@ -417,14 +482,23 @@ def traverse_tb_logs(tb_logs_base_dir):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Run histogram experiments with mode-specific parameters')
+    parser.add_argument(
+        '--dataset', '-d',
+        type=str,
+        nargs='+',
+        choices=DATASET_CONFIG.keys(),
+        help='Name of the dataset(s) to process. Choices are: ' + ', '.join(DATASET_CONFIG.keys())
+    )
     return parser.parse_args()
 
 def main():
-
     tb_logs_base_dir = 'tb_logs'
     features_base_dir = os.path.join('features', 'similarity_plots')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     num_batches = None
+
+    args = parse_args()
+    selected_datasets = args.dataset
 
     if not os.path.isdir(tb_logs_base_dir):
         print(f"Error: tb_logs directory '{tb_logs_base_dir}' does not exist.")
@@ -433,6 +507,16 @@ def main():
     os.makedirs(features_base_dir, exist_ok=True)
 
     dataset_folders = traverse_tb_logs(tb_logs_base_dir)
+
+    if selected_datasets:
+        dataset_folders = {dataset: folders for dataset, folders in dataset_folders.items() if dataset in selected_datasets}
+        missing_datasets = set(selected_datasets) - set(dataset_folders.keys())
+        if missing_datasets:
+            for ds in missing_datasets:
+                print(f"Warning: Dataset '{ds}' not found in tb_logs. It will be skipped.")
+    else:
+        pass
+
     if not dataset_folders:
         print("No valid datasets found in tb_logs. Exiting.")
         return
@@ -458,7 +542,7 @@ def main():
             except Exception as e:
                 print(f"An error occurred during processing: {e}")
 
-    print("\nAll datasets processed.")
+    print("\nAll selected datasets processed.")
 
 if __name__ == "__main__":
     main()
