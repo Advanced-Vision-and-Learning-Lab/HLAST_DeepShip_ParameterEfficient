@@ -259,7 +259,7 @@ def parse_args():
                         help='Flag to use histogram shared')
     parser.add_argument('--adapters_shared', default=True, action=argparse.BooleanOptionalAction,
                         help='Flag to use adapter shared')
-    parser.add_argument('--data_selection', type=int, default=1,
+    parser.add_argument('--data_selection', type=int, default=0,
                         help='Dataset selection: See Demo_Parameters for full list of datasets')
     parser.add_argument('-numBins', type=int, default=16,
                         help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
@@ -277,8 +277,8 @@ def parse_args():
                         help='input batch size for training (default: 128)')
     parser.add_argument('--num_epochs', type=int, default=1,
                         help='Number of epochs to train each model for (default: 50)')
-    parser.add_argument('--num_workers', type=int, default=8,
-                        help='Number of workers (default: 8)')
+    parser.add_argument('--num_workers', type=int, default=4,
+                        help='Number of workers (default: 4)')
     parser.add_argument('--lr', type=float, default=1e-5,
                         help='learning rate (default: 0.001)')
     parser.add_argument('--audio_feature', type=str, default='LogMelFBank',
