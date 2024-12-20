@@ -1,13 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Apr 17 11:01:06 2024
-
-@author: amir.m
-"""
-
-#from __future__ import print_function
-#from __future__ import division
 
 import numpy as np
 import argparse
@@ -32,16 +22,8 @@ import zipfile
 from Datasets.Create_Combined_VTUAD import Create_Combined_VTUAD
 from Datasets.VTUAD_DataModule import AudioDataModule
 
-import pdb
-
 def count_trainable_params(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
-
-def print_memory_usage(prefix=""):
-    allocated = torch.cuda.memory_allocated()
-    reserved = torch.cuda.memory_reserved()
-    print(f"{prefix}Memory Allocated: {allocated / (1024**3):.4f} GB")
-    print(f"{prefix}Memory Reserved: {reserved / (1024**3):.4f} GB")
 
 def unzip_if_needed(zip_path, extract_to):
     """
@@ -65,7 +47,6 @@ def main(Params):
     a_shared = Params['adapters_shared']
     
     batch_size = Params['batch_size']
-     
     t_batch_size = batch_size['train']
 
     num_workers = Params['num_workers']
@@ -197,8 +178,6 @@ def main(Params):
             accelerator='gpu', 
     	    devices=1,          
         )
-
-        print_memory_usage('Before fit:')
         
         trainer.fit(model=model_AST, datamodule=data_module) 
         

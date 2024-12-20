@@ -1,9 +1,6 @@
-
 import torch.nn as nn
 from torchlibrosa.stft import Spectrogram, LogmelFilterBank
 from torchlibrosa.augmentation import SpecAugmentation
-#from Utils.pytorch_utils import Mixup, do_mixup
-import pdb
 
 class MelSpectrogramExtractor(nn.Module): 
     def __init__(self, sample_rate=16000, n_fft=512, win_length=512, hop_length=160, n_mels=64, fmin=50, fmax=8000):
@@ -35,7 +32,6 @@ class MelSpectrogramExtractor(nn.Module):
         #self.spec_augmenter = SpecAugmentation(time_drop_width=time_drop_width, time_stripes_num=2, 
         #    freq_drop_width=16, freq_stripes_num=2)
 
-        
         self.bn0 = nn.BatchNorm2d(t_n)
 
     def forward(self, waveform):

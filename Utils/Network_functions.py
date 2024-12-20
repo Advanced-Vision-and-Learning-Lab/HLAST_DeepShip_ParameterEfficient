@@ -1,6 +1,3 @@
-#from __future__ import print_function
-#from __future__ import division
-
 from Utils.Feature_Extraction_Layer import Feature_Extraction_Layer
 from src.models.ast_base import ASTBase
 from src.models.ast_linear_probe import ASTLinearProbe

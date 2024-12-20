@@ -1,14 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Jul 16 10:10:34 2024
-
-@author: amir.m
-"""
-
-#from __future__ import print_function
-#from __future__ import division
-
 import torch
 from Utils.Network_functions import initialize_model
 import torch.nn.functional as F
@@ -21,7 +10,6 @@ class LitModel(L.LightningModule):
         super().__init__()
 
         self.learning_rate = Params['lr']
-
 
         self.model_ft, self.feature_extraction_layer = initialize_model(model_name, num_classes,
                                                                         numBins,RR,Params['sample_rate'],

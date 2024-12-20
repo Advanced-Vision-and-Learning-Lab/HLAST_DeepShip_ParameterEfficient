@@ -6,8 +6,6 @@ os.environ['TORCH_HOME'] = 'pretrained_models'
 import timm
 from timm.models.layers import to_2tuple,trunc_normal_
 
-import pdb
-
 class AdapterLayer(nn.Module):
     def __init__(self, dim, reduction_factor=128):
         super(AdapterLayer, self).__init__()
@@ -144,27 +142,21 @@ class ASTAdapter(nn.Module):
     
             if adapter_shared:
 
-                if self.adapter_location in ['all', 'mhsa_ffn','mhsa_out', 'mhsa']:
+                if self.adapter_location in ['mhsa_ffn', 'mhsa']:
                     shared_adapter_mhsa = AdapterLayer(self.original_embedding_dim,self.reduction_factor)
                     self.adapters_mhsa = nn.ModuleList([shared_adapter_mhsa for _ in range(len(self.v.blocks))])
-                if self.adapter_location in ['all', 'mhsa_ffn', 'ffn_out', 'ffn']:
+                if self.adapter_location in ['mhsa_ffn', 'ffn']:
                     shared_adapter_ffn = AdapterLayer(self.original_embedding_dim,self.reduction_factor)
                     self.adapters_ffn = nn.ModuleList([shared_adapter_ffn for _ in range(len(self.v.blocks))])
-                if self.adapter_location in ['all', 'mhsa_out', 'ffn_out', 'out']:
-                    shared_adapter_out = AdapterLayer(self.original_embedding_dim,self.reduction_factor)
-                    self.adapters_out =nn.ModuleList([shared_adapter_out for _ in range(len(self.v.blocks))])        
-                        
-            
+   
             elif not adapter_shared:    
             # Distinct weights:
 
-                if self.adapter_location in ['all', 'mhsa_ffn','mhsa_out', 'mhsa']:
+                if self.adapter_location in ['mhsa_ffn', 'mhsa']:
                     self.adapters_mhsa = nn.ModuleList([AdapterLayer(self.original_embedding_dim,self.reduction_factor) for _ in range(len(self.v.blocks))])
-                if self.adapter_location in ['all', 'mhsa_ffn', 'ffn_out', 'ffn']:
+                if self.adapter_location in ['mhsa_ffn', 'ffn']:
                     self.adapters_ffn = nn.ModuleList([AdapterLayer(self.original_embedding_dim,self.reduction_factor) for _ in range(len(self.v.blocks))])
-                if self.adapter_location in ['all', 'mhsa_out', 'ffn_out', 'out']:
-                    self.adapters_out = nn.ModuleList([AdapterLayer(self.original_embedding_dim,self.reduction_factor) for _ in range(len(self.v.blocks))])
-       
+
             self.mlp_head = nn.Sequential(
                 nn.LayerNorm(self.original_embedding_dim),
                 nn.Linear(self.original_embedding_dim, label_dim)
@@ -216,11 +208,6 @@ class ASTAdapter(nn.Module):
                 for param in adapter.parameters():
                     param.requires_grad = True
         
-        if hasattr(self, 'adapters_out') and self.adapters_out is not None:
-            for adapter in self.adapters_out:
-                for param in adapter.parameters():
-                    param.requires_grad = True
-        
         for param in self.mlp_head.parameters():
             param.requires_grad = True
         
@@ -242,7 +229,7 @@ class ASTAdapter(nn.Module):
             residual = x
             x = blk.norm1(x)
 
-            if self.adapter_location in ['all', 'mhsa_ffn', 'mhsa_out', 'mhsa']:
+            if self.adapter_location in ['mhsa_ffn', 'mhsa']:
                 if self.adapter_mode == 'parallel':
                     attn_out = blk.attn(x)
                     attn_out = attn_out + self.adapters_mhsa[i](x)
@@ -260,7 +247,7 @@ class ASTAdapter(nn.Module):
             residual = x
             x = blk.norm2(x)
 
-            if self.adapter_location in ['all', 'mhsa_ffn', 'ffn_out', 'ffn']:
+            if self.adapter_location in ['mhsa_ffn', 'ffn']:
                 if self.adapter_mode == 'parallel':
                     ffn_out = blk.mlp(x)
                     ffn_out = ffn_out + self.adapters_ffn[i](x)

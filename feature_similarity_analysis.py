@@ -181,7 +181,6 @@ def extract_features(model, dataloader, device, h5_file_path, num_batches=None):
     if os.path.exists(h5_file_path):
         os.remove(h5_file_path)
 
-    # We will determine feature_dim from the first batch
     h5_file = h5py.File(h5_file_path, 'w')
     dataset = None
     total_samples = 0
@@ -242,7 +241,6 @@ def extract_features(model, dataloader, device, h5_file_path, num_batches=None):
     h5_file.close()
     return total_samples, total_batches
 
-
 def compute_layer_cosine_similarity(h5_files_dict, model_names, output_path='cosine_similarity_plot.png'):
     """
     Compute cosine similarity from h5 files (stored for each model).
@@ -262,7 +260,7 @@ def compute_layer_cosine_similarity(h5_files_dict, model_names, output_path='cos
     # We'll compute similarities layer by layer
     cosine_similarities = {layer: {m: [] for m in model_names if m != reference_model} for layer in range(num_layers)}
 
-    # Load reference model data fully into memory (optional optimization: chunk if very large)
+    # Load reference model data fully into memory 
     with h5py.File(h5_files_dict[reference_model], 'r') as f_ref:
         ref_data = f_ref['features'][:]  # shape (num_samples, num_layers, feature_dim)
 
@@ -300,19 +298,18 @@ def compute_layer_cosine_similarity(h5_files_dict, model_names, output_path='cos
     # Plot the results
     plot_cosine_similarity(cosine_sim_stats, model_names, output_path=output_path)
 
-
 def plot_cosine_similarity(cosine_sim_stats, model_names, output_path='cosine_similarity_plot.png'):
     num_layers = len(cosine_sim_stats)
     layers = np.arange(num_layers)
 
-    plt.figure(figsize=(12, 8))  
+    plt.figure(figsize=(10, 6))  
     for model_name in model_names:
         if model_name == 'full_fine_tune':
             continue
         means = [cosine_sim_stats[layer][model_name]['mean'] for layer in layers]
         stds = [cosine_sim_stats[layer][model_name]['std'] for layer in layers]
         plt.plot(layers, means, label=model_name, marker='o', linestyle='-', linewidth=2)
-        plt.fill_between(layers, np.array(means) - np.array(stds), np.array(means) + np.array(stds), alpha=0.15)
+        plt.fill_between(layers, np.array(means) - np.array(stds), np.array(means) + np.array(stds), alpha=0.10)
 
     plt.xlabel('Layer Number', fontsize=18)
     plt.ylabel('Cosine Similarity', fontsize=18)
@@ -320,10 +317,10 @@ def plot_cosine_similarity(cosine_sim_stats, model_names, output_path='cosine_si
     plt.grid(True)
     plt.xticks(layers, fontsize=16)
     plt.yticks(fontsize=16)
+    plt.ylim(0.15, 1.00)
 
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
-
 
 def load_model_with_args(model_path, model_name, num_classes, run_number, params):
     try:
@@ -464,7 +461,6 @@ def process_dataset(dataset_name, dataset_folders, tb_logs_base_dir, features_ba
         print(f"Cosine similarity plot saved to '{output_plot_path}'.")
     else:
         print(f"Reference model 'full_fine_tune' features not available for dataset '{dataset_name}'. Skipping cosine similarity computation.")
-
 
 def traverse_tb_logs(tb_logs_base_dir):
     dataset_folders = {}

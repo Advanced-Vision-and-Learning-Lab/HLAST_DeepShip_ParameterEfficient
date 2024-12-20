@@ -43,7 +43,6 @@ class ShipsEarDataModule(L.LightningDataModule):
         # File to save/load splits
         self.split_file = split_file
         
-        # Placeholder for datasets
         self.train_dataset = None
         self.val_dataset = None
         self.test_dataset = None

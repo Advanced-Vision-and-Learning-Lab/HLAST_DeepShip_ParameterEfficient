@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Jun 12 15:22:15 2024
-
-@author: amir.m
-"""
-
 import os
 import numpy as np
 import torch
@@ -13,7 +5,6 @@ from torch.utils.data import Dataset, DataLoader
 from collections import defaultdict
 from scipy.io import wavfile
 import lightning as L
-import librosa
 import random
 
 class SSAudioDataset(Dataset):
@@ -30,7 +21,6 @@ class SSAudioDataset(Dataset):
         class_name = os.path.basename(os.path.dirname(os.path.dirname(file_path)))
         label = self.class_to_idx[class_name]
         
-        # Load the audio file on-the-fly
         _, data = wavfile.read(file_path)
         data_tensor = torch.tensor(data, dtype=torch.float32)
         label_tensor = torch.tensor(label, dtype=torch.long)
@@ -84,14 +74,12 @@ class SSAudioDataModule(L.LightningDataModule):
         print(f'Organized data into {len(organized_data)} classes')
         return organized_data
 
-
     def create_splits(self, organized_data):
         all_recordings = []
         for class_name, recordings in organized_data.items():
             for recording_name in recordings.keys():
                 all_recordings.append((class_name, recording_name, organized_data[class_name][recording_name]))
 
-        # Shuffling to ensure randomness
         random.seed(42)
         random.shuffle(all_recordings)
 
@@ -119,7 +107,7 @@ class SSAudioDataModule(L.LightningDataModule):
     
         all_data = self.train_data + self.val_data + self.test_data
     
-        # Ensure all_data is a list of dictionaries with 'file_path' key
+        # all_data is a list of dictionaries with 'file_path' key
         if not isinstance(all_data, list):
             raise ValueError("all_data should be a list")
         if not all(isinstance(file_data, dict) for file_data in all_data):
@@ -144,7 +132,6 @@ class SSAudioDataModule(L.LightningDataModule):
         else:
             print("\nNo data leakage detected.")
 
-
     def save_split_indices(self, filepath):
         print("\nSaving split indices...")
         with open(filepath, 'w') as f:
@@ -159,7 +146,6 @@ class SSAudioDataModule(L.LightningDataModule):
             f.write('\nTest indices and paths:\n')
             for idx, file_data in enumerate(self.test_data):
                 f.write(f'{idx}: {file_data["file_path"]}\n')
-
 
     def load_split_indices(self, filepath):
         print("\nLoading split indices from the saved file...\n")
@@ -186,7 +172,6 @@ class SSAudioDataModule(L.LightningDataModule):
                             'file_path': adjusted_file_path
                         }
                         
-
                         if current_split == 'train':
                             self.train_data.append(file_data)
                         elif current_split == 'val':
@@ -201,12 +186,11 @@ class SSAudioDataModule(L.LightningDataModule):
         self.check_data_leakage()
         self.prepared = True
 
-
     def prepare_data(self):
         split_indices_path = 'split_indices.txt'
 
         if os.path.exists(split_indices_path):
-            if not self.prepared:  # Check if already prepared to avoid redundant loading
+            if not self.prepared:  
                 self.load_split_indices(split_indices_path)
                 self.prepared = True                      
         else:
@@ -221,7 +205,6 @@ class SSAudioDataModule(L.LightningDataModule):
                 self.save_split_indices(split_indices_path)  
                 
                 self.prepared = True
-
     
     def setup(self, stage=None):
         pass

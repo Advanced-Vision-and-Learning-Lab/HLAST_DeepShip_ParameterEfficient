@@ -43,10 +43,8 @@ class HistogramLayer(nn.Module):
 
         self.hist_pool = nn.AdaptiveAvgPool1d(output_size)
 
-        # Access bin centers and widths
         self.centers = self.bin_centers_conv.bias
         self.widths = self.bin_widths_conv.weight
-
 
     def forward(self, xx):
         # Learn bin centers
@@ -69,7 +67,6 @@ class HistogramLayer(nn.Module):
             xx = (self.kernel_size ** self.dim) * self.hist_pool(xx)
 
         return xx
-
  
     def constrain_bins(self,xx):
         #Enforce sum to one constraint across bins

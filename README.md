@@ -27,7 +27,7 @@ Next, run [`demo.py`](demo.py) in Python IDE (e.g., Spyder) or command line to t
 ## Inventory
 
 ```
-https://github.com/Peeples-Lab/HLTDNN 
+https://github.com/Peeples-Lab/HLAST_DeepShip_ParameterEfficient 
 
 └── root directory
     ├── demo_light.py                     // Main demo file.
