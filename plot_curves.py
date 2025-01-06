@@ -38,36 +38,39 @@ def save_learning_curves(log_dir, output_path):
     val_loss = extract_scalar_from_events(event_paths, 'val_loss')
 
     if train_loss and val_loss:
-        plt.figure(figsize=(5, 4))
+        # Plot Learning Curves
+        plt.figure(figsize=(6, 5))  # Increased figsize for better layout
         plt.plot(train_loss, label='Training', color='blue', lw=3)
         plt.plot(val_loss, label='Validation', color='orange', lw=3)
-        plt.xlabel('Epochs', fontsize=16)
-        plt.ylabel('Loss', fontsize=16)
-        #plt.title('Learning Curves', fontsize=18)
-        plt.legend(loc="best", fontsize=14)
+        plt.xlabel('Epochs', fontsize=14)
+        plt.ylabel('Loss', fontsize=14)
+        plt.legend(loc="best", fontsize=12)
         plt.grid(True)
-        plt.xticks(fontsize=14)
-        plt.yticks(fontsize=14)
+        plt.xticks(fontsize=12)
+        plt.yticks(fontsize=12)
         plt.ylim(0.0, 1.8)
-        plt.savefig(output_path, dpi=300)
+        plt.tight_layout()  # Adjust layout to prevent label cutoff
+        plt.savefig(output_path.replace(".png", ".svg"), dpi=300, bbox_inches='tight')
+        #plt.savefig(output_path, dpi=300)
         plt.close()
-        
+
         # Save the log-scale plot
         log_output_path = output_path.replace(".png", "_logscale.png")  # Modify the output path for the log-scale plot
-        plt.figure(figsize=(5, 4))
+        plt.figure(figsize=(6, 5))  # Ensure consistent figsize
         plt.plot(train_loss, label='Training', color='blue', lw=3)
         plt.plot(val_loss, label='Validation', color='orange', lw=3)
         plt.xlabel('Epochs', fontsize=16)
         plt.ylabel('Loss', fontsize=16)
-        #plt.title('Learning Curves (Log Scale)', fontsize=18)
         plt.legend(loc="best", fontsize=14)
         plt.grid(True, which='both', linestyle='--', linewidth=0.5)  # Add grid for log scale
         plt.xticks(fontsize=14)
         plt.yticks(fontsize=14)
         plt.yscale('log')  # Set y-axis to log scale
-        plt.savefig(log_output_path, dpi=300)
+        plt.tight_layout()  # Adjust layout before saving
+        #plt.savefig(log_output_path, dpi=300)
+        plt.savefig(log_output_path.replace(".png", ".svg"), dpi=300, bbox_inches='tight')
         plt.close()        
-        
+
     else:
         print(f"Required scalars ('loss_epoch', 'val_loss') not found in {log_dir}.")
 
@@ -87,17 +90,16 @@ def save_accuracy_curves(log_dir, output_path):
 
     # Plot accuracy curves if both scalars are available
     if train_acc and val_acc:
-        plt.figure(figsize=(6, 4))
+        plt.figure(figsize=(6, 5))  # Increased figsize for better layout
         plt.plot(train_acc, label='Training', color='green', lw=3)
         plt.plot(val_acc, label='Validation', color='red', lw=3)
-        plt.xlabel('Epochs', fontsize=15)
-        plt.ylabel('Accuracy', fontsize=15)
-        #plt.title('Accuracy Curves', fontsize=18)
+        plt.xlabel('Epochs', fontsize=14)
+        plt.ylabel('Accuracy', fontsize=14)
         plt.legend(loc="best", fontsize=12)
         plt.grid(True)
         plt.xticks(fontsize=12)
         plt.yticks(fontsize=12)
-
+        plt.tight_layout()  # Adjust layout to prevent label cutoff
         plt.savefig(output_path, dpi=300)
         plt.close()
     else:

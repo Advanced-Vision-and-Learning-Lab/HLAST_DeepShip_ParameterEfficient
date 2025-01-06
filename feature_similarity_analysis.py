@@ -48,6 +48,8 @@ MODE_CONFIG = {
         'data_selection': 0,
         'numBins': 16,
         'RR': 64,
+        #'numBins': 16, #DeepShip
+        #'RR': 128, #DeepShip
         'train_mode': 'full_fine_tune',
         'use_pretrained': True,
         'train_batch_size': 64,
@@ -75,6 +77,8 @@ MODE_CONFIG = {
         'data_selection': 0,
         'numBins': 16,
         'RR': 64,
+        #'numBins': 16, #DeepShip
+        #'RR': 128, #DeepShip
         'train_mode': 'linear_probing',
         'use_pretrained': True,
         'train_batch_size': 64,
@@ -97,8 +101,8 @@ MODE_CONFIG = {
     },
     'adapters': {
         'model': 'AST',
-        'histograms_shared': True,
-        'adapters_shared': True,
+        'histograms_shared': False,
+        'adapters_shared': False,
         'data_selection': 0,
         'numBins': 16,
         'RR': 64,
@@ -124,8 +128,8 @@ MODE_CONFIG = {
     },
     'histogram': {
         'model': 'AST',
-        'histograms_shared': True,
-        'adapters_shared': True,
+        'histograms_shared': False,
+        'adapters_shared': False,
         'data_selection': 0,
         'numBins': 16,
         'RR': 64,
@@ -313,7 +317,7 @@ def plot_cosine_similarity(cosine_sim_stats, model_names, output_path='cosine_si
 
     plt.xlabel('Layer Number', fontsize=18)
     plt.ylabel('Cosine Similarity', fontsize=18)
-    plt.legend(fontsize=16)
+    plt.legend(fontsize=16, loc='lower left')
     plt.grid(True)
     plt.xticks(layers, fontsize=16)
     plt.yticks(fontsize=16)
