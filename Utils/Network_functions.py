@@ -3,6 +3,7 @@ from src.models.ast_base import ASTBase
 from src.models.ast_linear_probe import ASTLinearProbe
 from src.models.ast_adapter import ASTAdapter
 from src.models.ast_histogram import ASTHistogram
+from src.models.ast_bias import ASTBias
 
 def initialize_model(model_name, num_classes, numBins, RR, sample_rate=16000,segment_length=5,
                      t_mode='full_fine_tune', h_shared=True, a_shared=True,
@@ -32,6 +33,9 @@ def initialize_model(model_name, num_classes, numBins, RR, sample_rate=16000,seg
         model_ft = ASTHistogram(label_dim=num_classes, input_fdim=inpf, input_tdim=inpt,
                                 NumBins=numBins, histogram_location=histogram_location,
                                 hist_shared=h_shared, histogram_mode=histogram_mode)
+    elif t_mode == 'bias':                            
+    	model_ft = ASTBias(label_dim=num_classes, input_fdim=inpf, input_tdim=inpt)
+                         
     else:
         raise ValueError(f"Unknown training mode: {t_mode}")
 
