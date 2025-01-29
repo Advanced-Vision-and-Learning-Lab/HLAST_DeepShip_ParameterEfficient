@@ -25,7 +25,10 @@ class LitModel(L.LightningModule):
                                                                         adapter_location=Params['adapter_location'],
                                                                         adapter_mode=Params['adapter_mode'],
                                                                         histogram_location=Params['histogram_location'],
-                                                                        histogram_mode=Params['histogram_mode'])
+                                                                        histogram_mode=Params['histogram_mode'],
+                                                                        lora_target=Params['lora_target'],
+                                                                        lora_rank=Params['lora_rank'],
+                                                                        r_shared=Params['lora_shared'])
 
         self.train_acc = torchmetrics.classification.Accuracy(
             task="multiclass", num_classes=num_classes)

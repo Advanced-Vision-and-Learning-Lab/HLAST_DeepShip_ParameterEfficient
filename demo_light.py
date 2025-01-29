@@ -1,4 +1,4 @@
-
+import pdb
 import numpy as np
 import argparse
 import torch
@@ -54,7 +54,7 @@ def main(Params):
     run_number = 0
     seed_everything(run_number+1, workers=True)
     new_dir = Params["new_dir"] 
-
+    
     if Params['data_selection'] == 0:
         process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
         data_module = SSAudioDataModule(data_dir=new_dir, batch_size=batch_size, num_workers=num_workers)
@@ -124,8 +124,8 @@ def main(Params):
              "Invalid selection"
     print('\nStarting Experiments for ' + DataName)
     
-    numRuns = 3
-    progress_bar=False
+    numRuns = 1
+    progress_bar=True
     
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
@@ -160,13 +160,16 @@ def main(Params):
         print(f'Total Trainable Parameters: {num_params}')
 
         logger = TensorBoardLogger(
-            save_dir=(
+            save_dir = (
                 f"tb_logs/{DataName}_{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-                f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
-                f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run_number}"
+                f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}"
+                f"_{numBins}bins_{Params['histogram_location']}_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}"
+                f"_m{Params['number_mels']}_lora{Params['lora_target']}_R{Params['lora_rank']}_Share{Params['lora_shared']}/Run_{run_number}"
             ),
             name="metrics"
         )
+
+
 
         trainer = L.Trainer(
             max_epochs=Params['num_epochs'],
@@ -175,8 +178,8 @@ def main(Params):
             logger=logger,
             log_every_n_steps=20,
             enable_progress_bar=progress_bar,
-            accelerator='gpu', 
-    	    devices=1,          
+            accelerator='gpu',       
+        	    devices="auto"
         )
         
         trainer.fit(model=model_AST, datamodule=data_module) 
@@ -200,9 +203,10 @@ def main(Params):
         all_test_accs.append(best_test_acc)
     
         results_filename = (
-        f"tb_logs/{DataName}_{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-        f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
-        f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/Run_{run_number}/metrics.txt"
+            f"tb_logs/{DataName}_{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
+            f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}"
+            f"_{numBins}bins_{Params['histogram_location']}_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}"
+            f"_m{Params['number_mels']}_lora{Params['lora_target']}_R{Params['lora_rank']}_Share{Params['lora_shared']}/Run_{run_number}/metrics.txt"
         )
 
         with open(results_filename, "a") as file:
@@ -217,10 +221,11 @@ def main(Params):
     overall_std_test_acc = np.std(all_test_accs)
     
     summary_filename = (
-        f"tb_logs/{DataName}_{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
-        f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}_{numBins}bins_{Params['histogram_location']}"
-        f"_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}_m{Params['number_mels']}/summary_metrics.txt"
-    )
+            f"tb_logs/{DataName}_{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
+            f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}"
+            f"_{numBins}bins_{Params['histogram_location']}_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}"
+            f"_m{Params['number_mels']}_lora{Params['lora_target']}_R{Params['lora_rank']}_Share{Params['lora_shared']}/summary_metrics.txt"
+        )
 
     with open(summary_filename, "a") as file:
         file.write("Overall Results Across All Runs\n\n")
@@ -282,6 +287,12 @@ def parse_args():
                         help='Location for the histogram layers (default: ffn)')
     parser.add_argument('--histogram_mode', type=str, default='None',
                         help='Mode for the histogram layers (default: parallel)')
+    parser.add_argument('--lora_target', type=str, default='q',
+                        help='location for the lora (default: q)')
+    parser.add_argument('--lora_rank', type=int, default=6,
+                        help='rank for the lora (default: 4)')
+    parser.add_argument('--lora_shared', default=False, action=argparse.BooleanOptionalAction,
+                        help='Flag to use lora shared')
     args = parser.parse_args()
     return args
 

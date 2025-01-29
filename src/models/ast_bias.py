@@ -106,7 +106,7 @@ class ASTBias(nn.Module):
                 wget.download(audioset_mdl_url, out='pretrained_models/audioset_10_10_0.4593.pth')
             sd = torch.load('pretrained_models/audioset_10_10_0.4593.pth', map_location=device, weights_only=True)
             
-            # Here, we just initialize the same ASTBias class (which won't have adapters) to load weights.
+            # Here, we just initialize the same ASTBias class 
             audio_model = ASTBias(label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, imagenet_pretrain=False, audioset_pretrain=False, model_size='base384', verbose=False)
             audio_model = torch.nn.DataParallel(audio_model)
             audio_model.load_state_dict(sd, strict=False)

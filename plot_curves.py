@@ -37,6 +37,11 @@ def save_learning_curves(log_dir, output_path):
     train_loss = extract_scalar_from_events(event_paths, 'loss_epoch')
     val_loss = extract_scalar_from_events(event_paths, 'val_loss')
 
+    # Define the desired formats
+    formats = ['png', 'svg', 'pdf']
+    # Extract the base path without extension
+    base_output_path = os.path.splitext(output_path)[0]
+
     if train_loss and val_loss:
         # Plot Learning Curves
         plt.figure(figsize=(6, 5))  # Increased figsize for better layout
@@ -48,10 +53,15 @@ def save_learning_curves(log_dir, output_path):
         plt.grid(True)
         plt.xticks(fontsize=12)
         plt.yticks(fontsize=12)
-        plt.ylim(0.0, 1.8)
+        plt.ylim(0.0, 3.0)
         plt.tight_layout()  # Adjust layout to prevent label cutoff
-        plt.savefig(output_path.replace(".png", ".svg"), dpi=300, bbox_inches='tight')
-        #plt.savefig(output_path, dpi=300)
+        
+        # Save the plot in all desired formats
+        for fmt in formats:
+            save_path = f"{base_output_path}.{fmt}"
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Saved plot to {save_path}")
+        
         plt.close()
 
         # Save the log-scale plot
