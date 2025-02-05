@@ -13,7 +13,7 @@ def initialize_model(model_name, num_classes, numBins, RR, sample_rate=16000,seg
                      window_length=512, hop_length=256, number_mels=64,
                      adapter_location='ffn', adapter_mode='parallel', 
                      histogram_location='ffn', histogram_mode='parallel',
-                     lora_target='q', lora_rank=4, r_shared=False, lora_alpha=1.0):
+                     lora_target='q', lora_rank=4, r_shared=False):
 
     # Initialize feature layer
     feature_layer = Feature_Extraction_Layer(input_feature=input_feature, sample_rate=sample_rate,segment_length=segment_length,
@@ -39,10 +39,11 @@ def initialize_model(model_name, num_classes, numBins, RR, sample_rate=16000,seg
     elif t_mode == 'bias':                            
         	model_ft = ASTBias(label_dim=num_classes, input_fdim=inpf, input_tdim=inpt)
         
-    # 'q' or 'qv'
+
     elif t_mode == 'lora':    
         model_ft = ASTLoRA(label_dim=num_classes, input_fdim=inpf, input_tdim=inpt,
-                lora_target=lora_target, lora_rank=lora_rank, lora_alpha=lora_alpha, lora_shared=r_shared)
+                           lora_shared=r_shared, lora_rank=lora_rank, lora_update_mode=lora_target)
+    
         
     else:
         raise ValueError(f"Unknown training mode: {t_mode}")

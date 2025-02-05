@@ -2,88 +2,88 @@ import torch
 import torch.nn as nn
 import os
 import wget
+import math
 os.environ['TORCH_HOME'] = 'pretrained_models'
 import timm
 from timm.models.layers import to_2tuple, trunc_normal_
 
-import torch.nn.functional as F
+# ------------------------------------------------------------
+# LoRA_qkv Module with Optional "q" or "qv" Update Modes
+# ------------------------------------------------------------
+class LoRA_qkv(nn.Module):
+    def __init__(self, linear_layer: nn.Linear, r: int = 4, alpha: float = 1.0, update_mode: str = "qv"):
+        """
+        Wraps the original qkv linear layer (which outputs concatenated Q, K, V) and adds low-rank updates.
+        
+        Args:
+            linear_layer: The original qkv projection layer (output shape: [B, N, 3*dim]).
+            r: The LoRA rank.
+            alpha: Scaling factor for the LoRA update.
+            update_mode: Either "qv" (update both query and value) or "q" (update query only).
+        """
+        super(LoRA_qkv, self).__init__()
+        self.in_features = linear_layer.in_features
+        self.out_features = linear_layer.out_features
+        assert self.out_features % 3 == 0, "Expected out_features to be divisible by 3 (query, key, value)"
+        self.dim = self.out_features // 3  # dimension for each of Q, K, V
+        self.r = r
+        self.alpha = alpha
+        self.update_mode = update_mode.lower()
+        if self.update_mode not in ["q", "qv"]:
+            raise ValueError("update_mode must be either 'q' or 'qv'")
+        self.scaling = alpha / r if r > 0 else 0
 
-class LoRAQKVAttention(nn.Module):
-    """
-    A single wrapper around Timm's MHSA to insert LoRA offsets into Q (and optionally V).
-    The big attention weights remain in self.timm_attn (frozen).
-    We only train the 'down_q', 'up_q', etc.
-    """
-
-    def __init__(self, 
-                 timm_attn: nn.Module,
-                 dim: int,
-                 lora_target='q',   # 'q' or 'qv'
-                 lora_rank=4,
-                 lora_alpha=1.0):
-        super().__init__()
-        self.timm_attn = timm_attn
-        self.dim        = dim
-        self.lora_target = lora_target
-        self.lora_rank   = lora_rank
-        self.lora_alpha  = lora_alpha
-
-        # Freeze Timm's big attn weights
-        for p in self.timm_attn.parameters():
-            p.requires_grad = False
-
-        # LoRA for Q
-        self.down_q = nn.Linear(dim, lora_rank, bias=False)
-        self.up_q   = nn.Linear(lora_rank, dim, bias=False)
-        nn.init.zeros_(self.down_q.weight)
-        nn.init.zeros_(self.up_q.weight)
-
-        # LoRA for V if we do 'qv'
-        if self.lora_target == 'qv':
-            self.down_v = nn.Linear(dim, lora_rank, bias=False)
-            self.up_v   = nn.Linear(lora_rank, dim, bias=False)
-            nn.init.zeros_(self.down_v.weight)
-            nn.init.zeros_(self.up_v.weight)
+        # Freeze and store the original weight and bias.
+        self.register_buffer("weight", linear_layer.weight.detach().clone())
+        if linear_layer.bias is not None:
+            self.register_buffer("bias", linear_layer.bias.detach().clone())
         else:
-            self.down_v = None
-            self.up_v   = None
+            self.bias = None
+
+        if r > 0:
+            # Create LoRA parameters for the query part (always)
+            self.lora_A_q = nn.Parameter(torch.zeros(self.dim, r))
+            self.lora_B_q = nn.Parameter(torch.zeros(r, self.in_features))
+            nn.init.kaiming_uniform_(self.lora_B_q, a=math.sqrt(5))
+            nn.init.zeros_(self.lora_A_q)
+            if self.update_mode == "qv":
+                # Also create LoRA parameters for the value part.
+                self.lora_A_v = nn.Parameter(torch.zeros(self.dim, r))
+                self.lora_B_v = nn.Parameter(torch.zeros(r, self.in_features))
+                nn.init.kaiming_uniform_(self.lora_B_v, a=math.sqrt(5))
+                nn.init.zeros_(self.lora_A_v)
+            else:
+                self.lora_A_v = None
+                self.lora_B_v = None
+        else:
+            self.lora_A_q = None
+            self.lora_B_q = None
+            self.lora_A_v = None
+            self.lora_B_v = None
 
     def forward(self, x):
-        B, N, C = x.shape
-        # 1) Original Q, K, V from Timm (frozen)
-        qkv = F.linear(x, self.timm_attn.qkv.weight, self.timm_attn.qkv.bias)
-        qkv = qkv.reshape(B, N, 3, C).permute(2, 0, 1, 3)  # [3, B, N, C]
-        q, k, v = qkv[0], qkv[1], qkv[2]
+        # Compute the original qkv output (frozen weights)
+        original_out = torch.nn.functional.linear(x, self.weight, self.bias)  # shape: [B, N, 3*dim]
+        if self.r > 0:
+            # Compute low-rank update for the query part.
+            delta_q = (x @ self.lora_B_q.T) @ self.lora_A_q.T  # shape: [B, N, dim]
+            delta_q = delta_q * self.scaling
+            out = original_out.clone()
+            out[..., :self.dim] += delta_q  # add update to query part
+            
+            # Compute and add update for value part if update_mode=="qv"
+            if self.update_mode == "qv":
+                delta_v = (x @ self.lora_B_v.T) @ self.lora_A_v.T  # shape: [B, N, dim]
+                delta_v = delta_v * self.scaling
+                out[..., 2*self.dim:3*self.dim] += delta_v  # add update to value part
+            return out
+        else:
+            return original_out
 
-        # 2) Add LoRA offset to Q (and V if 'qv')
-        q_offset = self.up_q(self.down_q(x)) * self.lora_alpha
-        q = q + q_offset
-        if self.lora_target == 'qv':
-            v_offset = self.up_v(self.down_v(x)) * self.lora_alpha
-            v = v + v_offset
-
-        # 3) Standard multi-head attention
-        num_heads = self.timm_attn.num_heads
-        head_dim  = C // num_heads
-        q = q.reshape(B, N, num_heads, head_dim).permute(0, 2, 1, 3)
-        k = k.reshape(B, N, num_heads, head_dim).permute(0, 2, 1, 3)
-        v = v.reshape(B, N, num_heads, head_dim).permute(0, 2, 1, 3)
-
-        attn = (q * self.timm_attn.scale) @ k.transpose(-2, -1)
-        attn = attn.softmax(dim=-1)
-        attn = self.timm_attn.attn_drop(attn)
-
-        x_out = attn @ v
-        x_out = x_out.permute(0, 2, 1, 3).reshape(B, N, C)
-
-        # output projection
-        x_out = self.timm_attn.proj(x_out)
-        x_out = self.timm_attn.proj_drop(x_out)
-        return x_out
-
-
+# ------------------------------------------------------------
+# PatchEmbed: override timm's input shape restriction.
+# ------------------------------------------------------------
 class PatchEmbed(nn.Module):
-    """Identical to your original patch embedding override."""
     def __init__(self, img_size=224, patch_size=16, in_chans=3, embed_dim=768):
         super().__init__()
         img_size = to_2tuple(img_size)
@@ -101,40 +101,39 @@ class PatchEmbed(nn.Module):
         x = x.transpose(1, 2)
         return x
 
-
-
+# ------------------------------------------------------------
+# ASTAdapter Model with LoRA injection (for AudioSet-pretrained branch)
+# ------------------------------------------------------------
 class ASTLoRA(nn.Module):
-
-    def __init__(self,
-                 label_dim=527,
-                 fstride=10,
-                 tstride=10,
-                 input_fdim=128,
-                 input_tdim=1024,
-                 imagenet_pretrain=True,
-                 audioset_pretrain=True,
-                 model_size='base384',
-                 verbose=True,
-                 lora_target='q',   # 'q' or 'qv'
-                 lora_rank=4,
-                 lora_alpha=1.0,
-                 lora_shared=False):
-        super().__init__()
-        assert timm.__version__ == '0.4.5', 'Use timm==0.4.5 for compatibility.'
+    def __init__(self, label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, 
+                 imagenet_pretrain=True, audioset_pretrain=True, model_size='base384', verbose=True, 
+                 lora_shared=True, lora_rank=4, lora_update_mode="qv"):
+        """
+        Args:
+            label_dim: Number of output classes.
+            fstride, tstride: Strides for the projection.
+            input_fdim, input_tdim: Input feature dimensions.
+            imagenet_pretrain, audioset_pretrain: Flags to control model loading.
+            model_size: one of 'tiny224', 'small224', 'base224', 'base384'.
+            verbose: Whether to print status messages.
+            lora_shared: If True, all transformer blocks share the same LoRA_qkv module.
+            lora_rank: LoRA rank (r in the paper).
+            lora_update_mode: Either "qv" (update query and value) or "q" (update query only).
+        """
+        super(ASTLoRA, self).__init__()
+        assert timm.__version__ == '0.4.5', 'Please use timm == 0.4.5, the code might not be compatible with newer versions.'
 
         if verbose:
-            print('---------------AST Model Summary (LoRA)---------------')
-            print(f'ImageNet pretraining: {imagenet_pretrain}, AudioSet pretraining: {audioset_pretrain}')
-
+            print('---------------AST Model Summary---------------')
+            print('ImageNet pretraining: {:s}, AudioSet pretraining: {:s}'.format(str(imagenet_pretrain), str(audioset_pretrain)))
+        # Override timm input shape restriction.
         timm.models.vision_transformer.PatchEmbed = PatchEmbed
 
-        self.lora_target = lora_target
-        self.lora_rank   = lora_rank
-        self.lora_alpha  = lora_alpha
-        self.lora_shared = lora_shared
-
-        if not audioset_pretrain:
-            # ImageNet only path
+        # ------------------------------
+        # Case 1: AudioSet pretraining is NOT used.
+        # (No LoRA injection in this branch.)
+        # ------------------------------
+        if audioset_pretrain == False:
             if model_size == 'tiny224':
                 self.v = timm.create_model('vit_deit_tiny_distilled_patch16_224', pretrained=imagenet_pretrain)
             elif model_size == 'small224':
@@ -144,200 +143,133 @@ class ASTLoRA(nn.Module):
             elif model_size == 'base384':
                 self.v = timm.create_model('vit_deit_base_distilled_patch16_384', pretrained=imagenet_pretrain)
             else:
-                raise ValueError("model_size must be one of [tiny224, small224, base224, base384]")
-
+                raise Exception('Model size must be one of tiny224, small224, base224, base384.')
             self.original_num_patches = self.v.patch_embed.num_patches
-            self.oringal_hw = int(self.original_num_patches**0.5)
+            self.oringal_hw = int(self.original_num_patches ** 0.5)
             self.original_embedding_dim = self.v.pos_embed.shape[2]
 
             f_dim, t_dim = self.get_shape(fstride, tstride, input_fdim, input_tdim)
             num_patches = f_dim * t_dim
             self.v.patch_embed.num_patches = num_patches
             if verbose:
-                print(f'frequency stride={fstride}, time stride={tstride}')
-                print(f'number of patches={num_patches}')
+                print('frequency stride={:d}, time stride={:d}'.format(fstride, tstride))
+                print('number of patches={:d}'.format(num_patches))
 
-            # set up for 1-channel input
-            new_proj = nn.Conv2d(1, self.original_embedding_dim, kernel_size=(16,16), stride=(fstride,tstride))
+            new_proj = nn.Conv2d(1, self.original_embedding_dim, kernel_size=(16, 16), stride=(fstride, tstride))
             if imagenet_pretrain:
                 new_proj.weight = nn.Parameter(torch.sum(self.v.patch_embed.proj.weight, dim=1).unsqueeze(1))
-                new_proj.bias   = self.v.patch_embed.proj.bias
+                new_proj.bias = self.v.patch_embed.proj.bias
             self.v.patch_embed.proj = new_proj
 
             if imagenet_pretrain:
-                new_pos_embed = self.v.pos_embed[:, 2:, :].detach().reshape(
-                    1, self.original_num_patches, self.original_embedding_dim
-                ).transpose(1,2).reshape(
-                    1, self.original_embedding_dim, self.oringal_hw, self.oringal_hw
-                )
-                # time dimension
+                new_pos_embed = self.v.pos_embed[:, 2:, :].detach() \
+                    .reshape(1, self.original_num_patches, self.original_embedding_dim) \
+                    .transpose(1, 2) \
+                    .reshape(1, self.original_embedding_dim, self.oringal_hw, self.oringal_hw)
                 if t_dim <= self.oringal_hw:
-                    new_pos_embed = new_pos_embed[
-                        :, :, :, 
-                        self.oringal_hw//2 - t_dim//2 : self.oringal_hw//2 - t_dim//2 + t_dim
-                    ]
+                    new_pos_embed = new_pos_embed[:, :, :, int(self.oringal_hw / 2) - int(t_dim / 2): int(self.oringal_hw / 2) - int(t_dim / 2) + t_dim]
                 else:
-                    new_pos_embed = nn.functional.interpolate(new_pos_embed, size=(self.oringal_hw, t_dim), mode='bilinear')
-                # freq dimension
+                    new_pos_embed = torch.nn.functional.interpolate(new_pos_embed, size=(self.oringal_hw, t_dim), mode='bilinear')
                 if f_dim <= self.oringal_hw:
-                    new_pos_embed = new_pos_embed[
-                        :, :, 
-                        self.oringal_hw//2 - f_dim//2 : self.oringal_hw//2 - f_dim//2 + f_dim, 
-                        :
-                    ]
+                    new_pos_embed = new_pos_embed[:, :, int(self.oringal_hw / 2) - int(f_dim / 2): int(self.oringal_hw / 2) - int(f_dim / 2) + f_dim, :]
                 else:
-                    new_pos_embed = nn.functional.interpolate(new_pos_embed, size=(f_dim, t_dim), mode='bilinear')
-
+                    new_pos_embed = torch.nn.functional.interpolate(new_pos_embed, size=(f_dim, t_dim), mode='bilinear')
                 new_pos_embed = new_pos_embed.reshape(1, self.original_embedding_dim, num_patches).transpose(1,2)
                 self.v.pos_embed = nn.Parameter(torch.cat([self.v.pos_embed[:, :2, :].detach(), new_pos_embed], dim=1))
             else:
-                new_pos_embed = nn.Parameter(torch.zeros(
-                    1, self.v.patch_embed.num_patches+2, self.original_embedding_dim
-                ))
+                new_pos_embed = nn.Parameter(torch.zeros(1, self.v.patch_embed.num_patches + 2, self.original_embedding_dim))
                 self.v.pos_embed = new_pos_embed
                 trunc_normal_(self.v.pos_embed, std=.02)
 
-            self.build_lora_modules()
-            self.mlp_head = nn.Sequential(
-                nn.LayerNorm(self.original_embedding_dim),
-                nn.Linear(self.original_embedding_dim, label_dim)
-            )
-            self.freeze_base_model()
-
-        else:
-            # AudioSet + ImageNet
-            if not imagenet_pretrain:
-                raise ValueError("AudioSet-only pretrained not supported.")
+        # ------------------------------
+        # Case 2: AudioSet pretraining is used.
+        # Here we load the pretrained model and patch each transformer block's
+        # attention module by replacing its qkv layer with a LoRA_qkv that uses the chosen update mode.
+        # ------------------------------
+        elif audioset_pretrain == True:
+            if audioset_pretrain == True and imagenet_pretrain == False:
+                raise ValueError('Currently a model pretrained only on AudioSet is not supported, please set imagenet_pretrain=True.')
             if model_size != 'base384':
-                raise ValueError("Only base384 AudioSet pretrained model is available.")
+                raise ValueError('Currently only the base384 AudioSet pretrained model is supported.')
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
             if not os.path.exists('pretrained_models/audioset_10_10_0.4593.pth'):
                 audioset_mdl_url = 'https://www.dropbox.com/s/cv4knew8mvbrnvq/audioset_0.4593.pth?dl=1'
                 wget.download(audioset_mdl_url, out='pretrained_models/audioset_10_10_0.4593.pth')
-
             sd = torch.load('pretrained_models/audioset_10_10_0.4593.pth', map_location=device, weights_only=True)
-
-            tmp = ASTLoRA(label_dim=527,
-                          fstride=10, tstride=10,
-                          input_fdim=128, input_tdim=1024,
-                          imagenet_pretrain=False, audioset_pretrain=False,
-                          model_size='base384', verbose=False,
-                          lora_target=self.lora_target,
-                          lora_rank=self.lora_rank,
-                          lora_alpha=self.lora_alpha,
-                          lora_shared=self.lora_shared)
-            tmp = nn.DataParallel(tmp)
-            tmp.load_state_dict(sd, strict=False)
-
-            self.v = tmp.module.v
+            audio_model = ASTLoRA(label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, 
+                                     imagenet_pretrain=False, audioset_pretrain=False, model_size='base384', verbose=False)
+            audio_model = nn.DataParallel(audio_model)
+            audio_model.load_state_dict(sd, strict=False)
+            self.v = audio_model.module.v
             self.original_embedding_dim = self.v.pos_embed.shape[2]
-
+            
             print(f"\nNumber of transformer blocks: {len(self.v.blocks)}")
-
-            self.build_lora_modules()
-
+            
+            # Patch each transformer's attention module:
+            # Replace qkv with LoRA_qkv (either shared or unique per block).
+            if lora_shared:
+                shared_lora_qkv = None
+                for blk in self.v.blocks:
+                    if shared_lora_qkv is None:
+                        shared_lora_qkv = LoRA_qkv(blk.attn.qkv, r=lora_rank, alpha=1.0, update_mode=lora_update_mode)
+                    blk.attn.qkv = shared_lora_qkv
+            else:
+                for blk in self.v.blocks:
+                    blk.attn.qkv = LoRA_qkv(blk.attn.qkv, r=lora_rank, alpha=1.0, update_mode=lora_update_mode)
+   
             self.mlp_head = nn.Sequential(
                 nn.LayerNorm(self.original_embedding_dim),
                 nn.Linear(self.original_embedding_dim, label_dim)
             )
-
+            
             f_dim, t_dim = self.get_shape(fstride, tstride, input_fdim, input_tdim)
             num_patches = f_dim * t_dim
             self.v.patch_embed.num_patches = num_patches
             if verbose:
-                print(f'frequency stride={fstride}, time stride={tstride}')
-                print(f'number of patches={num_patches}')
-
-            new_pos_embed = self.v.pos_embed[:, 2:, :].detach().reshape(1, 1212, 768).transpose(1,2).reshape(1,768,12,101)
+                print('frequency stride={:d}, time stride={:d}'.format(fstride, tstride))
+                print('number of patches={:d}'.format(num_patches))
+    
+            new_pos_embed = self.v.pos_embed[:, 2:, :].detach() \
+                .reshape(1, 1212, 768).transpose(1, 2).reshape(1, 768, 12, 101)
             if t_dim < 101:
-                new_pos_embed = new_pos_embed[:, :, :, 50 - t_dim//2 : 50 - t_dim//2 + t_dim]
+                new_pos_embed = new_pos_embed[:, :, :, 50 - int(t_dim/2): 50 - int(t_dim/2) + t_dim]
             else:
-                new_pos_embed = nn.functional.interpolate(new_pos_embed, size=(12, t_dim), mode='bilinear')
+                new_pos_embed = torch.nn.functional.interpolate(new_pos_embed, size=(12, t_dim), mode='bilinear')
             if f_dim < 12:
-                new_pos_embed = new_pos_embed[:, :, 6 - f_dim//2 : 6 - f_dim//2 + f_dim, :]
+                new_pos_embed = new_pos_embed[:, :, 6 - int(f_dim/2): 6 - int(f_dim/2) + f_dim, :]
             elif f_dim > 12:
-                new_pos_embed = nn.functional.interpolate(new_pos_embed, size=(f_dim, t_dim), mode='bilinear')
-
-            new_pos_embed = new_pos_embed.reshape(1,768, num_patches).transpose(1,2)
+                new_pos_embed = torch.nn.functional.interpolate(new_pos_embed, size=(f_dim, t_dim), mode='bilinear')
+            new_pos_embed = new_pos_embed.reshape(1, 768, num_patches).transpose(1, 2)
             self.v.pos_embed = nn.Parameter(torch.cat([self.v.pos_embed[:, :2, :].detach(), new_pos_embed], dim=1))
 
             self.freeze_base_model()
-
-    def build_lora_modules(self):
-        """
-        Replace each block's Timm Attention with LoRAQKVAttention once.
-        If lora_shared=True, reuse one LoRAQKVAttention for all blocks.
-        Otherwise, each block gets a distinct wrapper.
-        """
-        num_blocks = len(self.v.blocks)
-
-        if self.lora_shared:
-            # Build a single LoRAQKVAttention from block 0
-            base_attn = self.v.blocks[0].attn
-            if not isinstance(base_attn, LoRAQKVAttention):
-                shared_lora = LoRAQKVAttention(
-                    timm_attn=base_attn,
-                    dim=self.original_embedding_dim,
-                    lora_target=self.lora_target,
-                    lora_rank=self.lora_rank,
-                    lora_alpha=self.lora_alpha
-                )
-                for i in range(num_blocks):
-                    self.v.blocks[i].attn = shared_lora
-        else:
-            # Each block gets its own
-            for i in range(num_blocks):
-                base_attn = self.v.blocks[i].attn
-                if not isinstance(base_attn, LoRAQKVAttention):
-                    lora_attn = LoRAQKVAttention(
-                        timm_attn=base_attn,
-                        dim=self.original_embedding_dim,
-                        lora_target=self.lora_target,
-                        lora_rank=self.lora_rank,
-                        lora_alpha=self.lora_alpha
-                    )
-                    self.v.blocks[i].attn = lora_attn
-
-    def freeze_base_model(self):
-        """
-        Freeze all giant ViT parameters. Then ONLY unfreeze:
-          - The LoRA offsets (down_q, up_q, etc.)
-          - The final classifier head
-        """
-        # Freeze everything
-        for param in self.v.parameters():
-            param.requires_grad = False
-
-        # Now selectively unfreeze the LoRA offsets
-        for i, block in enumerate(self.v.blocks):
-            attn_module = block.attn
-            if isinstance(attn_module, LoRAQKVAttention):
-                # We only want 'down_q', 'up_q', 'down_v', 'up_v' to be trainable.
-                # Timm's 'qkv' or 'proj' remain frozen.
-                for name, p in attn_module.named_parameters():
-                    # If it's a LoRA offset param
-                    if name.startswith("down_") or name.startswith("up_"):
-                        p.requires_grad = True
-                    else:
-                        p.requires_grad = False
-
-        # Also unfreeze final classifier
-        for param in self.mlp_head.parameters():
-            param.requires_grad = True
-
-        print("Base model frozen. Only LoRA offsets + classifier are trainable.")
-
+        
     def get_shape(self, fstride, tstride, input_fdim=128, input_tdim=1024):
-        test_input = torch.randn(1,1,input_fdim,input_tdim)
-        test_proj = nn.Conv2d(1, self.original_embedding_dim, kernel_size=(16,16), stride=(fstride,tstride))
+        test_input = torch.randn(1, 1, input_fdim, input_tdim)
+        test_proj = nn.Conv2d(1, self.original_embedding_dim, kernel_size=(16, 16), stride=(fstride, tstride))
         test_out = test_proj(test_input)
         f_dim = test_out.shape[2]
         t_dim = test_out.shape[3]
         return f_dim, t_dim
 
+    def freeze_base_model(self):
+        for param in self.v.parameters():
+            param.requires_grad = False
+        
+        # Unfreeze only the LoRA parameters inside qkv.
+        for blk in self.v.blocks:
+            for name, param in blk.attn.qkv.named_parameters():
+                if 'lora' in name:
+                    param.requires_grad = True
+        
+        for param in self.mlp_head.parameters():
+            param.requires_grad = True
+        
+        print("Base model frozen. Only LoRA parameters and classifier are trainable.")
+    
     def forward(self, x):
         B = x.shape[0]
+
         x = self.v.patch_embed(x)
 
         cls_tokens = self.v.cls_token.expand(B, -1, -1)
@@ -346,19 +278,20 @@ class ASTLoRA(nn.Module):
         x = x + self.v.pos_embed
         x = self.v.pos_drop(x)
 
-        for i, blk in enumerate(self.v.blocks):
+        for blk in self.v.blocks:
             residual = x
             x = blk.norm1(x)
-            attn_out = blk.attn(x)  
-            x = attn_out + residual
+            x = blk.attn(x)   # Uses the patched LoRA_qkv.
+            x = residual + x
             x = blk.drop_path(x)
 
             residual = x
             x = blk.norm2(x)
             x = blk.mlp(x)
-            x = x + residual
+            x = residual + x
             x = blk.drop_path(x)
 
         x = (x[:, 0] + x[:, 1]) / 2
         x = self.mlp_head(x)
-        return x
+
+        return x 

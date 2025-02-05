@@ -125,7 +125,7 @@ def main(Params):
     print('\nStarting Experiments for ' + DataName)
     
     numRuns = 1
-    progress_bar=True
+    progress_bar=False
     
     torch.set_float32_matmul_precision('medium')
     all_val_accs = []
@@ -179,7 +179,7 @@ def main(Params):
             log_every_n_steps=20,
             enable_progress_bar=progress_bar,
             accelerator='gpu',       
-        	    devices="auto"
+            	devices="auto"
         )
         
         trainer.fit(model=model_AST, datamodule=data_module) 
