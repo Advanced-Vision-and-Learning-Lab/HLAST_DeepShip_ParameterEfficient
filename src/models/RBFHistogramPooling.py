@@ -70,7 +70,6 @@ class HistogramLayer(nn.Module):
  
     def constrain_bins(self,xx):
         #Enforce sum to one constraint across bins
-        # Time series/ signal Data
         if self.dim == 1:
             n,c,l = xx.size()
             xx_sum = xx.reshape(n, c//self.numBins, self.numBins, l).sum(2) + torch.tensor(10e-6)

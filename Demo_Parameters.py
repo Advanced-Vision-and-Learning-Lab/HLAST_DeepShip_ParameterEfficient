@@ -1,9 +1,9 @@
-
 def Parameters(args):
 
     histograms_shared = args.histograms_shared
     adapters_shared = args.adapters_shared
     lora_shared = args.lora_shared
+    ssf_shared = args.ssf_shared
     
     data_selection = args.data_selection
     Dataset_names = {0: 'DeepShip', 1: 'ShipsEar', 2: 'VTUAD'}
@@ -59,6 +59,7 @@ def Parameters(args):
                           'window_length':window_length,'hop_length':hop_length,'number_mels':number_mels,
                           'adapter_location': args.adapter_location,'adapter_mode': args.adapter_mode,
                           'histogram_location': args.histogram_location,'histogram_mode': args.histogram_mode,
-                          'lora_target': args.lora_target, 'lora_rank': args.lora_rank, 'lora_shared': lora_shared}
+                          'lora_target': args.lora_target, 'lora_rank': args.lora_rank, 'lora_shared': lora_shared, 
+                          'bias_mode': args.bias_mode, 'ssf_shared': ssf_shared, 'ssf_mode': args.ssf_mode}
     return Params
 

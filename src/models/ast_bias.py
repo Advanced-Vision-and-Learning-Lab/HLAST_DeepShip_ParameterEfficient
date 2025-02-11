@@ -25,15 +25,23 @@ class PatchEmbed(nn.Module):
         return x
 
 class ASTBias(nn.Module):
-
     def __init__(self, label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, 
-                 imagenet_pretrain=True, audioset_pretrain=True, model_size='base384', verbose=True):
+                 imagenet_pretrain=True, audioset_pretrain=True, model_size='base384', verbose=True,
+                 bias_mode='full'):
+        """
+        bias_mode options:
+            'full'  : unfreeze all bias parameters in the base model (default, as before)
+            'query' : unfreeze only the query bias in attention (for combined qkv layers, a hook zeros key/value grads)
+            'mlp'   : unfreeze only the bias parameters in the second (output) linear layer of the MLP.
+        """
         super(ASTBias, self).__init__()
+        self.bias_mode = bias_mode  # new argument to select which bias parameters to tune
+
         assert timm.__version__ == '0.4.5', 'Please use timm == 0.4.5, the code might not be compatible with newer versions.'
 
-        if verbose == True:
+        if verbose:
             print('---------------AST Model Summary---------------')
-            print('ImageNet pretraining: {:s}, AudioSet pretraining: {:s}'.format(str(imagenet_pretrain),str(audioset_pretrain)))
+            print('ImageNet pretraining: {:s}, AudioSet pretraining: {:s}'.format(str(imagenet_pretrain), str(audioset_pretrain)))
         # override timm input shape restriction
         timm.models.vision_transformer.PatchEmbed = PatchEmbed
 
@@ -53,34 +61,35 @@ class ASTBias(nn.Module):
             self.oringal_hw = int(self.original_num_patches ** 0.5)
             self.original_embedding_dim = self.v.pos_embed.shape[2]
 
-            # automatcially get the intermediate shape
+            # automatically get the intermediate shape
             f_dim, t_dim = self.get_shape(fstride, tstride, input_fdim, input_tdim)
             num_patches = f_dim * t_dim
             self.v.patch_embed.num_patches = num_patches
-            if verbose == True:
+            if verbose:
                 print('frequncey stride={:d}, time stride={:d}'.format(fstride, tstride))
                 print('number of patches={:d}'.format(num_patches))
 
             # the linear projection layer
             new_proj = torch.nn.Conv2d(1, self.original_embedding_dim, kernel_size=(16, 16), stride=(fstride, tstride))
-            if imagenet_pretrain == True:
+            if imagenet_pretrain:
                 new_proj.weight = torch.nn.Parameter(torch.sum(self.v.patch_embed.proj.weight, dim=1).unsqueeze(1))
                 new_proj.bias = self.v.patch_embed.proj.bias
             self.v.patch_embed.proj = new_proj
 
             # the positional embedding
-            if imagenet_pretrain == True:
+            if imagenet_pretrain:
                 # get the positional embedding from deit model, skip the first two tokens (cls token and distillation token),
-                # reshape it to original 2D shape (24*24).
-                new_pos_embed = self.v.pos_embed[:, 2:, :].detach().reshape(1, self.original_num_patches, self.original_embedding_dim).transpose(1, 2).reshape(1, self.original_embedding_dim, self.oringal_hw, self.oringal_hw)
+                # reshape it to original 2D shape (e.g., 24x24).
+                new_pos_embed = self.v.pos_embed[:, 2:, :].detach().reshape(1, self.original_num_patches, self.original_embedding_dim)
+                new_pos_embed = new_pos_embed.transpose(1, 2).reshape(1, self.original_embedding_dim, self.oringal_hw, self.oringal_hw)
                 # cut (from middle) or interpolate the second dimension of the positional embedding
                 if t_dim <= self.oringal_hw:
-                    new_pos_embed = new_pos_embed[:, :, :, int(self.oringal_hw / 2) - int(t_dim / 2): int(self.oringal_hw / 2) - int(t_dim / 2) + t_dim]
+                    new_pos_embed = new_pos_embed[:, :, :, int(self.oringal_hw/2) - int(t_dim/2): int(self.oringal_hw/2) - int(t_dim/2) + t_dim]
                 else:
                     new_pos_embed = torch.nn.functional.interpolate(new_pos_embed, size=(self.oringal_hw, t_dim), mode='bilinear')
                 # cut (from middle) or interpolate the first dimension of the positional embedding
                 if f_dim <= self.oringal_hw:
-                    new_pos_embed = new_pos_embed[:, :, int(self.oringal_hw / 2) - int(f_dim / 2): int(self.oringal_hw / 2) - int(f_dim / 2) + f_dim, :]
+                    new_pos_embed = new_pos_embed[:, :, int(self.oringal_hw/2) - int(f_dim/2): int(self.oringal_hw/2) - int(f_dim/2) + f_dim, :]
                 else:
                     new_pos_embed = torch.nn.functional.interpolate(new_pos_embed, size=(f_dim, t_dim), mode='bilinear')
                 # flatten the positional embedding
@@ -95,19 +104,20 @@ class ASTBias(nn.Module):
 
         # now load a model that is pretrained on both ImageNet and AudioSet
         elif audioset_pretrain == True:
-            if audioset_pretrain == True and imagenet_pretrain == False:
-                raise ValueError('currently model pretrained on only audioset is not supported, please set imagenet_pretrain = True to use audioset pretrained model.')
+            if audioset_pretrain and not imagenet_pretrain:
+                raise ValueError('Currently model pretrained on only AudioSet is not supported; please set imagenet_pretrain = True.')
             if model_size != 'base384':
-                raise ValueError('currently only has base384 AudioSet pretrained model.')
+                raise ValueError('Currently only has base384 AudioSet pretrained model.')
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            if os.path.exists('pretrained_models/audioset_10_10_0.4593.pth') == False:
-                # this model performs 0.4593 mAP on the audioset eval set
+            if not os.path.exists('pretrained_models/audioset_10_10_0.4593.pth'):
+                # this model performs 0.4593 mAP on the AudioSet eval set
                 audioset_mdl_url = 'https://www.dropbox.com/s/cv4knew8mvbrnvq/audioset_0.4593.pth?dl=1'
                 wget.download(audioset_mdl_url, out='pretrained_models/audioset_10_10_0.4593.pth')
             sd = torch.load('pretrained_models/audioset_10_10_0.4593.pth', map_location=device, weights_only=True)
             
-            # Here, we just initialize the same ASTBias class 
-            audio_model = ASTBias(label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, imagenet_pretrain=False, audioset_pretrain=False, model_size='base384', verbose=False)
+            # Here, we just initialize the same ASTBias class (which won't have adapters) to load weights.
+            audio_model = ASTBias(label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024,
+                                   imagenet_pretrain=False, audioset_pretrain=False, model_size='base384', verbose=False)
             audio_model = torch.nn.DataParallel(audio_model)
             audio_model.load_state_dict(sd, strict=False)
             self.v = audio_model.module.v
@@ -124,12 +134,12 @@ class ASTBias(nn.Module):
             f_dim, t_dim = self.get_shape(fstride, tstride, input_fdim, input_tdim)
             num_patches = f_dim * t_dim
             self.v.patch_embed.num_patches = num_patches
-            if verbose == True:
+            if verbose:
                 print('frequncey stride={:d}, time stride={:d}'.format(fstride, tstride))
                 print('number of patches={:d}'.format(num_patches))
 
             new_pos_embed = self.v.pos_embed[:, 2:, :].detach().reshape(1, 1212, 768).transpose(1, 2).reshape(1, 768, 12, 101)
-            # if the input sequence length is larger than the original audioset (10s), then cut the positional embedding
+            # if the input sequence length is larger than the original AudioSet (10s), then cut the positional embedding
             if t_dim < 101:
                 new_pos_embed = new_pos_embed[:, :, :, 50 - int(t_dim/2): 50 - int(t_dim/2) + t_dim]
             else:
@@ -143,7 +153,6 @@ class ASTBias(nn.Module):
 
             self.freeze_base_model()
             return
-
 
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(self.original_embedding_dim),
@@ -161,21 +170,48 @@ class ASTBias(nn.Module):
         return f_dim, t_dim
 
     def freeze_base_model(self):
-
-        # 1) Freeze everything
+        # Freeze all parameters of the base model first.
         for param in self.v.parameters():
             param.requires_grad = False
-        
-        # 2) Unfreeze only the bias terms in the base model
-        for name, param in self.v.named_parameters():
-            if ".bias" in name:
-                param.requires_grad = True
-        
-        # 3) Unfreeze all params in the final classification head
+
+        if self.bias_mode == 'full':
+            # Unfreeze every bias parameter (as in the original implementation).
+            for name, param in self.v.named_parameters():
+                if ".bias" in name:
+                    param.requires_grad = True
+            mode_msg = "all bias parameters"
+        elif self.bias_mode == 'query':
+            # Unfreeze only the query bias inside the attention modules.
+            # In many implementations, the attention module uses a combined qkv layer.
+            # Here we unfreeze that qkv bias and register a hook to zero out the gradient for key and value parts.
+            def make_query_hook(dim):
+                def hook(grad):
+                    grad_clone = grad.clone()
+                    grad_clone[dim: 2*dim] = 0  # zero out key
+                    grad_clone[2*dim: 3*dim] = 0  # zero out value
+                    return grad_clone
+                return hook
+
+            for name, param in self.v.named_parameters():
+                if "attn.qkv.bias" in name:
+                    param.requires_grad = True
+                    dim = param.shape[0] // 3
+                    param.register_hook(make_query_hook(dim))
+            mode_msg = "query bias parameters (only the query part will be updated)"
+        elif self.bias_mode == 'mlp':
+            # Unfreeze only the bias of the second (output) linear layer in the MLP module.
+            for name, param in self.v.named_parameters():
+                if "mlp.fc2.bias" in name:
+                    param.requires_grad = True
+            mode_msg = "second MLP bias parameters"
+        else:
+            raise ValueError("Invalid bias_mode. Choose from 'full', 'query', or 'mlp'.")
+
+        # Finally, unfreeze all parameters in the final classification head.
         for param in self.mlp_head.parameters():
             param.requires_grad = True
-        
-        print("Base model frozen except for bias parameters. Only biases and classifier are trainable.")
+
+        print(f"Base model frozen except for {mode_msg}. Only selected biases and classifier are trainable.")
 
     def forward(self, x):
         B = x.shape[0]
@@ -189,14 +225,14 @@ class ASTBias(nn.Module):
         x = self.v.pos_drop(x)
 
         for i, blk in enumerate(self.v.blocks):
-            # MHSA sublayer
+            # Multi-head self-attention (MHSA) sublayer.
             residual = x
             x = blk.norm1(x)
             attn_out = blk.attn(x)
             x = attn_out + residual
             x = blk.drop_path(x)
 
-            # FFN sublayer
+            # Feed-forward (FFN) sublayer.
             residual = x
             x = blk.norm2(x)
             ffn_out = blk.mlp(x)
@@ -207,4 +243,3 @@ class ASTBias(nn.Module):
         x = self.mlp_head(x)
 
         return x
-

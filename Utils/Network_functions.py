@@ -4,8 +4,8 @@ from src.models.ast_linear_probe import ASTLinearProbe
 from src.models.ast_adapter import ASTAdapter
 from src.models.ast_histogram import ASTHistogram
 from src.models.ast_bias import ASTBias
-
 from src.models.ast_lora import ASTLoRA
+from src.models.ast_ssf import ASTSSF
 
 def initialize_model(model_name, num_classes, numBins, RR, sample_rate=16000,segment_length=5,
                      t_mode='full_fine_tune', h_shared=True, a_shared=True,
@@ -13,7 +13,8 @@ def initialize_model(model_name, num_classes, numBins, RR, sample_rate=16000,seg
                      window_length=512, hop_length=256, number_mels=64,
                      adapter_location='ffn', adapter_mode='parallel', 
                      histogram_location='ffn', histogram_mode='parallel',
-                     lora_target='q', lora_rank=4, r_shared=False):
+                     lora_target='q', lora_rank=4, r_shared=False, b_mode='full',
+                     ssf_shared=False, ssf_mode='full'):
 
     # Initialize feature layer
     feature_layer = Feature_Extraction_Layer(input_feature=input_feature, sample_rate=sample_rate,segment_length=segment_length,
@@ -37,13 +38,15 @@ def initialize_model(model_name, num_classes, numBins, RR, sample_rate=16000,seg
                                 NumBins=numBins, histogram_location=histogram_location,
                                 hist_shared=h_shared, histogram_mode=histogram_mode)
     elif t_mode == 'bias':                            
-        	model_ft = ASTBias(label_dim=num_classes, input_fdim=inpf, input_tdim=inpt)
+        	model_ft = ASTBias(label_dim=num_classes, input_fdim=inpf, input_tdim=inpt, bias_mode=b_mode) #choose 'full', 'query', 'mlp'
         
-
     elif t_mode == 'lora':    
         model_ft = ASTLoRA(label_dim=num_classes, input_fdim=inpf, input_tdim=inpt,
                            lora_shared=r_shared, lora_rank=lora_rank, lora_update_mode=lora_target)
-    
+
+    elif t_mode == 'ssf':                            
+        	model_ft = ASTSSF(label_dim=num_classes, input_fdim=inpf, input_tdim=inpt, ssf_shared=ssf_shared, ssf_mode=ssf_mode) #choose 'full', 'mhsa_only'
+     
         
     else:
         raise ValueError(f"Unknown training mode: {t_mode}")
@@ -56,7 +59,8 @@ def initialize_model(model_name, num_classes, numBins, RR, sample_rate=16000,seg
     print(f"Histogram mode: {histogram_mode}")
     print(f"Histogram location: {histogram_location}")
     print(f"Histogram shared: {h_shared}")
-    print(f"lora: {lora_target}, rank: {lora_rank}, shared: {r_shared}\n\n")
+    print(f"lora: {lora_target}, rank: {lora_rank}, shared: {r_shared}")
+    print(f"ssf_shared: {ssf_shared}, ssf_mode: {ssf_mode}\n")
     
     # Set requires_grad for parameters
     if t_mode == 'full_fine_tune':

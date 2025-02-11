@@ -124,7 +124,7 @@ def main(Params):
              "Invalid selection"
     print('\nStarting Experiments for ' + DataName)
     
-    numRuns = 1
+    numRuns = 3
     progress_bar=False
     
     torch.set_float32_matmul_precision('medium')
@@ -164,7 +164,7 @@ def main(Params):
                 f"tb_logs/{DataName}_{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
                 f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}"
                 f"_{numBins}bins_{Params['histogram_location']}_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}"
-                f"_m{Params['number_mels']}_lora{Params['lora_target']}_R{Params['lora_rank']}_Share{Params['lora_shared']}/Run_{run_number}"
+                f"_m{Params['number_mels']}_lora{Params['lora_target']}_R{Params['lora_rank']}_Share{Params['lora_shared']}_bias{Params['bias_mode']}/Run_{run_number}"
             ),
             name="metrics"
         )
@@ -179,7 +179,7 @@ def main(Params):
             log_every_n_steps=20,
             enable_progress_bar=progress_bar,
             accelerator='gpu',       
-            	devices="auto"
+        	devices="auto"
         )
         
         trainer.fit(model=model_AST, datamodule=data_module) 
@@ -206,7 +206,7 @@ def main(Params):
             f"tb_logs/{DataName}_{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
             f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}"
             f"_{numBins}bins_{Params['histogram_location']}_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}"
-            f"_m{Params['number_mels']}_lora{Params['lora_target']}_R{Params['lora_rank']}_Share{Params['lora_shared']}/Run_{run_number}/metrics.txt"
+            f"_m{Params['number_mels']}_lora{Params['lora_target']}_R{Params['lora_rank']}_Share{Params['lora_shared']}_bias{Params['bias_mode']}/Run_{run_number}/metrics.txt"
         )
 
         with open(results_filename, "a") as file:
@@ -224,7 +224,7 @@ def main(Params):
             f"tb_logs/{DataName}_{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
             f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}"
             f"_{numBins}bins_{Params['histogram_location']}_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}"
-            f"_m{Params['number_mels']}_lora{Params['lora_target']}_R{Params['lora_rank']}_Share{Params['lora_shared']}/summary_metrics.txt"
+            f"_m{Params['number_mels']}_lora{Params['lora_target']}_R{Params['lora_rank']}_Share{Params['lora_shared']}_bias{Params['bias_mode']}/summary_metrics.txt"
         )
 
     with open(summary_filename, "a") as file:
@@ -293,6 +293,12 @@ def parse_args():
                         help='rank for the lora (default: 4)')
     parser.add_argument('--lora_shared', default=False, action=argparse.BooleanOptionalAction,
                         help='Flag to use lora shared')
+    parser.add_argument('--bias_mode', type=str, default='full',
+                        help='bias selection (default: full)')   
+    parser.add_argument('--ssf_shared', default=False, action=argparse.BooleanOptionalAction,
+                        help='Flag to use ssf shared')
+    parser.add_argument('--ssf_mode', type=str, default='full',
+                        help='ssf_mode selection (default: full)')                  
     args = parser.parse_args()
     return args
 
