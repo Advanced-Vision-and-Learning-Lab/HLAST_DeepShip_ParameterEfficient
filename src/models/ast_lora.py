@@ -101,9 +101,7 @@ class PatchEmbed(nn.Module):
         x = x.transpose(1, 2)
         return x
 
-# ------------------------------------------------------------
-# ASTAdapter Model with LoRA injection (for AudioSet-pretrained branch)
-# ------------------------------------------------------------
+
 class ASTLoRA(nn.Module):
     def __init__(self, label_dim=527, fstride=10, tstride=10, input_fdim=128, input_tdim=1024, 
                  imagenet_pretrain=True, audioset_pretrain=True, model_size='base384', verbose=True, 
@@ -129,10 +127,6 @@ class ASTLoRA(nn.Module):
         # Override timm input shape restriction.
         timm.models.vision_transformer.PatchEmbed = PatchEmbed
 
-        # ------------------------------
-        # Case 1: AudioSet pretraining is NOT used.
-        # (No LoRA injection in this branch.)
-        # ------------------------------
         if audioset_pretrain == False:
             if model_size == 'tiny224':
                 self.v = timm.create_model('vit_deit_tiny_distilled_patch16_224', pretrained=imagenet_pretrain)
@@ -182,8 +176,7 @@ class ASTLoRA(nn.Module):
                 trunc_normal_(self.v.pos_embed, std=.02)
 
         # ------------------------------
-        # Case 2: AudioSet pretraining is used.
-        # Here we load the pretrained model and patch each transformer block's
+        # AudioSet pretraining.
         # attention module by replacing its qkv layer with a LoRA_qkv that uses the chosen update mode.
         # ------------------------------
         elif audioset_pretrain == True:
@@ -281,7 +274,7 @@ class ASTLoRA(nn.Module):
         for blk in self.v.blocks:
             residual = x
             x = blk.norm1(x)
-            x = blk.attn(x)   # Uses the patched LoRA_qkv.
+            x = blk.attn(x)   
             x = residual + x
             x = blk.drop_path(x)
 

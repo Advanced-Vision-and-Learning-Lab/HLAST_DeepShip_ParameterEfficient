@@ -38,7 +38,7 @@ def unzip_if_needed(zip_path, extract_to):
         print(f"{extract_to} already exists. Skipping extraction.")
         
 def main(Params):
-    
+
     model_name = Params['Model_name']
 
     numBins = Params['numBins']
@@ -124,7 +124,7 @@ def main(Params):
              "Invalid selection"
     print('\nStarting Experiments for ' + DataName)
     
-    numRuns = 3
+    numRuns = 1
     progress_bar=False
     
     torch.set_float32_matmul_precision('medium')
@@ -164,7 +164,7 @@ def main(Params):
                 f"tb_logs/{DataName}_{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
                 f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}"
                 f"_{numBins}bins_{Params['histogram_location']}_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}"
-                f"_m{Params['number_mels']}_lora{Params['lora_target']}_R{Params['lora_rank']}_Share{Params['lora_shared']}_bias{Params['bias_mode']}/Run_{run_number}"
+                f"_m{Params['number_mels']}_ssf{Params['ssf_mode']}_sh{Params['ssf_shared']}_lora{Params['lora_target']}_R{Params['lora_rank']}_Share{Params['lora_shared']}_bias{Params['bias_mode']}/Run_{run_number}"
             ),
             name="metrics"
         )
@@ -206,7 +206,7 @@ def main(Params):
             f"tb_logs/{DataName}_{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
             f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}"
             f"_{numBins}bins_{Params['histogram_location']}_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}"
-            f"_m{Params['number_mels']}_lora{Params['lora_target']}_R{Params['lora_rank']}_Share{Params['lora_shared']}_bias{Params['bias_mode']}/Run_{run_number}/metrics.txt"
+            f"_m{Params['number_mels']}_ssf{Params['ssf_mode']}_sh{Params['ssf_shared']}_lora{Params['lora_target']}_R{Params['lora_rank']}_Share{Params['lora_shared']}_bias{Params['bias_mode']}/Run_{run_number}/metrics.txt"
         )
 
         with open(results_filename, "a") as file:
@@ -224,7 +224,7 @@ def main(Params):
             f"tb_logs/{DataName}_{Params['feature']}_b{t_batch_size}_{Params['sample_rate']}_{Params['train_mode']}"
             f"_AdaptShared{a_shared}_RR{RR}_{Params['adapter_location']}_{Params['adapter_mode']}_Shared{h_shared}"
             f"_{numBins}bins_{Params['histogram_location']}_{Params['histogram_mode']}_w{Params['window_length']}_h{Params['hop_length']}"
-            f"_m{Params['number_mels']}_lora{Params['lora_target']}_R{Params['lora_rank']}_Share{Params['lora_shared']}_bias{Params['bias_mode']}/summary_metrics.txt"
+            f"_m{Params['number_mels']}_ssf{Params['ssf_mode']}_sh{Params['ssf_shared']}_lora{Params['lora_target']}_R{Params['lora_rank']}_Share{Params['lora_shared']}_bias{Params['bias_mode']}/summary_metrics.txt"
         )
 
     with open(summary_filename, "a") as file:
@@ -243,21 +243,21 @@ def parse_args():
                         help='Flag to use histogram shared')
     parser.add_argument('--adapters_shared', default=True, action=argparse.BooleanOptionalAction,
                         help='Flag to use adapter shared')
-    parser.add_argument('--data_selection', type=int, default=0,
+    parser.add_argument('--data_selection', type=int, default=1,
                         help='Dataset selection: See Demo_Parameters for full list of datasets')
     parser.add_argument('-numBins', type=int, default=16,
                         help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
     parser.add_argument('-RR', type=int, default=128,
                         help='Adapter Reduction Rate (default: 128)')
-    parser.add_argument('--train_mode', type=str, default='full_fine_tune',
-                        help='full_fine_tune or linear_probing or adapters or histogram')
+    parser.add_argument('--train_mode', type=str, default='ssf',
+                        help='full_fine_tune or linear_probing or adapters or histogram or ssf')
     parser.add_argument('--use_pretrained', default=True, action=argparse.BooleanOptionalAction,
                         help='Flag to use pretrained model or train from scratch (default: True)')
-    parser.add_argument('--train_batch_size', type=int, default=64,
+    parser.add_argument('--train_batch_size', type=int, default=16,
                         help='input batch size for training (default: 128)')
-    parser.add_argument('--val_batch_size', type=int, default=128,
+    parser.add_argument('--val_batch_size', type=int, default=32,
                         help='input batch size for training (default: 128)')
-    parser.add_argument('--test_batch_size', type=int, default=128,
+    parser.add_argument('--test_batch_size', type=int, default=32,
                         help='input batch size for training (default: 128)')
     parser.add_argument('--num_epochs', type=int, default=1,
                         help='Number of epochs to train each model for (default: 50)')
@@ -295,7 +295,7 @@ def parse_args():
                         help='Flag to use lora shared')
     parser.add_argument('--bias_mode', type=str, default='full',
                         help='bias selection (default: full)')   
-    parser.add_argument('--ssf_shared', default=False, action=argparse.BooleanOptionalAction,
+    parser.add_argument('--ssf_shared', default=True, action=argparse.BooleanOptionalAction,
                         help='Flag to use ssf shared')
     parser.add_argument('--ssf_mode', type=str, default='full',
                         help='ssf_mode selection (default: full)')                  

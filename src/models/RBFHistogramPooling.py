@@ -55,7 +55,7 @@ class HistogramLayer(nn.Module):
 
         # Apply radial basis function
         xx = torch.exp(-(xx ** 2))
-
+        
         # Normalize bins to sum to one
         if self.normalize_bins:
             xx = self.constrain_bins(xx)
