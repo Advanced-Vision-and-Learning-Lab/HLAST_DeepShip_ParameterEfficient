@@ -1,4 +1,3 @@
-
 import torch
 import torch.nn as nn
 import os
@@ -46,7 +45,6 @@ class SSFParam(nn.Module):
 
     def forward(self, x):
         return ssf_ada(x, self.scale, self.shift)
-
 
 ###############################################################################
 # Minimal custom versions of Attention & Mlp that accept external SSF modules.
@@ -135,7 +133,6 @@ class Mlp(nn.Module):
 
         return x
 
-
 ###############################################################################
 # Override timm's PatchEmbed so we can handle non-224 inputs 
 ###############################################################################
@@ -157,10 +154,9 @@ class PatchEmbed(nn.Module):
         x = x.flatten(2).transpose(1, 2)
         return x
 
-
 ###############################################################################
 # AST model with SSF in up to 6 positions per block (3 MHSA, 3 FFN),
-# with "shared vs. not shared" and "mhsa_only vs. full" options,
+# with "shared vs. not shared" and "mhsa_only vs. full vs. single" options,
 # adapted to DistilledVisionTransformer's Mlp structure.
 ###############################################################################
 class ASTSSF(nn.Module):
@@ -178,18 +174,18 @@ class ASTSSF(nn.Module):
                  ssf_mode='full'):
         """
         ssf_mode: 
-          - "full" => SSF in MHSA + FFN
-          - "mhsa_only" => SSF in MHSA only
-
+          - "full"       => SSF in MHSA (3 positions) + FFN (3 positions)
+          - "mhsa_only"  => SSF in MHSA only (3 positions)
+          - "single"     => A single SSF applied after the first norm layer in MHSA
+          
         ssf_shared:
-          - If True, all 6 SSF positions share one set of params across blocks 
-            for each location (norm1, qkv, proj, norm2, fc1, fc2).
-          - If False, each block has its own set for each location.
+          - If True, all SSF positions share one set of parameters across blocks for each location.
+          - If False, each block has its own set.
         """
         super().__init__()
         assert timm.__version__ == '0.4.5', 'Use timm==0.4.5 for compatibility.'
         if verbose:
-            print('--- AST Model with SSF (3 or 6 positions per block) ---')
+            print('--- AST Model with SSF (3, 6 or 1 positions per block) ---')
             print(f'ImageNet Pretrain: {imagenet_pretrain}, AudioSet Pretrain: {audioset_pretrain}')
             print(f'ssf_mode={ssf_mode}, ssf_shared={ssf_shared}')
 
@@ -321,24 +317,35 @@ class ASTSSF(nn.Module):
             blk.mlp = new_mlp
             # Keep blk.norm1, blk.norm2, and blk.drop_path as-is.
 
-        # Create the SSF parameters for each of the 6 (or 3) positions. 
-        # We'll store them in lists or single modules, depending on shared vs. not-shared.
+        # Create the SSF parameters for each of the 6 (or 3 or 1) positions.
         num_blocks = len(self.v.blocks)
 
-        # MHSA portion always used (3 positions)
-        # 1) after norm1
-        # 2) after qkv
-        # 3) after projection
-        if ssf_shared:
-            self.ssf_mhsa_norm_in = SSFParam(dim)
-            self.ssf_mhsa_qkv     = SSFParam(dim * 3)
-            self.ssf_mhsa_proj    = SSFParam(dim)
+        # --- Create SSF parameters for MHSA ---
+        # For MHSA, "full" and "mhsa_only" use 3 SSF layers,
+        # while "single" uses only one SSF after norm1.
+        if self.ssf_mode == "single":
+            if ssf_shared:
+                self.ssf_mhsa_norm_in = SSFParam(dim)
+                self.ssf_mhsa_qkv = None
+                self.ssf_mhsa_proj = None
+            else:
+                self.ssf_mhsa_norm_in = nn.ModuleList([SSFParam(dim) for _ in range(num_blocks)])
+                self.ssf_mhsa_qkv = None
+                self.ssf_mhsa_proj = None
+        elif self.ssf_mode in ["full", "mhsa_only"]:
+            if ssf_shared:
+                self.ssf_mhsa_norm_in = SSFParam(dim)
+                self.ssf_mhsa_qkv     = SSFParam(dim * 3)
+                self.ssf_mhsa_proj    = SSFParam(dim)
+            else:
+                self.ssf_mhsa_norm_in = nn.ModuleList([SSFParam(dim) for _ in range(num_blocks)])
+                self.ssf_mhsa_qkv     = nn.ModuleList([SSFParam(dim * 3) for _ in range(num_blocks)])
+                self.ssf_mhsa_proj    = nn.ModuleList([SSFParam(dim) for _ in range(num_blocks)])
         else:
-            self.ssf_mhsa_norm_in = nn.ModuleList([SSFParam(dim)     for _ in range(num_blocks)])
-            self.ssf_mhsa_qkv     = nn.ModuleList([SSFParam(dim * 3) for _ in range(num_blocks)])
-            self.ssf_mhsa_proj    = nn.ModuleList([SSFParam(dim)     for _ in range(num_blocks)])
+            raise ValueError("Invalid ssf_mode. Choose from ['full', 'mhsa_only', 'single'].")
 
-        # FFN portion (3 positions) only if ssf_mode == "full"
+        # --- Create SSF parameters for FFN ---
+        # Only add FFN SSF if ssf_mode == "full"
         if self.ssf_mode == "full":
             if ssf_shared:
                 self.ssf_ffn_norm_in = SSFParam(dim)
@@ -349,8 +356,7 @@ class ASTSSF(nn.Module):
                 self.ssf_ffn_norm_in = nn.ModuleList([SSFParam(dim) for _ in range(num_blocks)])
                 hidden_dim = self.v.blocks[0].mlp.fc1.out_features
                 self.ssf_ffn_fc1 = nn.ModuleList([SSFParam(hidden_dim) for _ in range(num_blocks)])
-                self.ssf_ffn_fc2 = nn.ModuleList([SSFParam(dim)        for _ in range(num_blocks)])
-
+                self.ssf_ffn_fc2 = nn.ModuleList([SSFParam(dim) for _ in range(num_blocks)])
 
         # --- Create classifier head ---
         self.mlp_head = nn.Sequential(
@@ -367,7 +373,6 @@ class ASTSSF(nn.Module):
         for param in self.v.parameters():
             param.requires_grad = False
         print("Base model frozen. Only SSF parameters + mlp_head remain trainable.")
-
 
     def get_shape(self, fstride, tstride, input_fdim=128, input_tdim=1024):
         """
@@ -437,17 +442,25 @@ class ASTSSF(nn.Module):
             residual = x
             x_norm = blk.norm1(x)
 
-            # (1) SSF after norm1
-            if self.ssf_shared:
-                x_norm = self.ssf_mhsa_norm_in(x_norm)
-                ssf_qkv  = self.ssf_mhsa_qkv
-                ssf_proj = self.ssf_mhsa_proj
-            else:
-                x_norm = self.ssf_mhsa_norm_in[i](x_norm)
-                ssf_qkv  = self.ssf_mhsa_qkv[i]
-                ssf_proj = self.ssf_mhsa_proj[i]
+            # (1) Apply SSF after norm1 based on mode
+            if self.ssf_mode == "single":
+                if self.ssf_shared:
+                    x_norm = self.ssf_mhsa_norm_in(x_norm)
+                else:
+                    x_norm = self.ssf_mhsa_norm_in[i](x_norm)
+                ssf_qkv = None
+                ssf_proj = None
+            else:  # "full" and "mhsa_only" modes: use all 3 SSF positions
+                if self.ssf_shared:
+                    x_norm = self.ssf_mhsa_norm_in(x_norm)
+                    ssf_qkv  = self.ssf_mhsa_qkv
+                    ssf_proj = self.ssf_mhsa_proj
+                else:
+                    x_norm = self.ssf_mhsa_norm_in[i](x_norm)
+                    ssf_qkv  = self.ssf_mhsa_qkv[i]
+                    ssf_proj = self.ssf_mhsa_proj[i]
 
-            # (2) after qkv & (3) after proj happen inside attention
+            # (2) SSF after qkv & (3) after proj occur inside attention
             attn_out = blk.attn(x_norm, ssf_qkv=ssf_qkv, ssf_proj=ssf_proj)
             x = residual + attn_out
             x = blk.drop_path(x)
@@ -455,9 +468,7 @@ class ASTSSF(nn.Module):
             # === FFN sub-layer ===
             residual = x
             x_norm = blk.norm2(x)
-
             if self.ssf_mode == "full":
-                # (4) SSF after norm2
                 if self.ssf_shared:
                     x_norm = self.ssf_ffn_norm_in(x_norm)
                     ssf_fc1 = self.ssf_ffn_fc1
@@ -467,11 +478,10 @@ class ASTSSF(nn.Module):
                     ssf_fc1 = self.ssf_ffn_fc1[i]
                     ssf_fc2 = self.ssf_ffn_fc2[i]
             else:
-                # mhsa_only => no FFN SSF
                 ssf_fc1 = None
                 ssf_fc2 = None
 
-            # (5) after fc1 & (6) after fc2 happen inside Mlp
+            # (5) SSF after fc1 & (6) after fc2 occur inside Mlp
             ffn_out = blk.mlp(
                 x_norm,
                 ssf_fc1=ssf_fc1,
