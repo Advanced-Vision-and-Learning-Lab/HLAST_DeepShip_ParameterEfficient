@@ -6,9 +6,14 @@
 
 Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine and Joshua Peeples
 
+If this code is used, please cite it. (2025, March): Initial Release (Version v1.0). 
+
 [arXiv](https://arxiv.org/abs/2504.15214)
 
-If this code is used, please cite it. (2025, March): Initial Release (Version v1.0). 
+### Zenodo archive
+
+[`Zenodo`](https://doi.org/10.5281/zenodo.15263760). https://zenodo.org/records/15263760  
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15263760.svg)](https://doi.org/10.5281/zenodo.15263760)
 
 ## Installation Prerequisites
 
@@ -60,4 +65,19 @@ This source code is licensed under the license found in the [`LICENSE`](LICENSE)
 
 This product is Copyright (c) 2025 A. Mohammadi, D. Carreiro, A. Dine and J. Peeples. All rights reserved.
 
+## Citation
 
+If you use this work, please cite:
+
+### arXiv preprint
+
+```bibtex
+@misc{mohammadi2025histogram,
+  title        = {Histogram-based Parameter-efficient Tuning for Passive Sonar Classification},
+  author       = {Mohammadi, Amirmohammad and Carreiro, Davelle and Van Dine, Alexandra and Peeples, Joshua},
+  year         = {2025},
+  eprint       = {2504.15214},
+  archivePrefix= {arXiv},
+  primaryClass = {cs.LG},
+  url          = {https://arxiv.org/abs/2504.15214}
+}
