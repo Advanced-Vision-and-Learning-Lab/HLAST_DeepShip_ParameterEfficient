@@ -1,16 +1,14 @@
-# HPT: Histogram-based Parameter-efficient Tuning
+# Histogram-based Parameter-efficient Tuning for Passive Sonar Classification
 <p align="center">
   <img src="Figures/Workflow.png" alt="Workflow Diagram">
 </p>
 
 
-**HPT: Histogram-based Parameter-efficient Tuning**
+Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine and Joshua Peeples
 
-Amirmohammad Mohammadi, Alexandra Van Dine and Joshua Peeples
+[arXiv](https://arxiv.org/abs/2504.15214)
 
-Note: If this code is used, please cite it: Amirmohammad Mohammadi, Alexandra Van Dine and Joshua Peeples. (2025, February) Peeples-Lab/HLTDNN: Initial Release (Version v1.0). 
-
-arXiv
+If this code is used, please cite it. (2025, March): Initial Release (Version v1.0). 
 
 ## Installation Prerequisites
 
@@ -52,7 +50,7 @@ https://github.com/Peeples-Lab/HLAST_DeepShip_ParameterEfficient
 		├── ast_linear_probe.py    // AST Linear Probing
 		├── ast_adapter.py         // AST with Adapter Layers
 		├── RBFHistogramPooling.py // Create the Histogram Layer
-		└── ast_histogram.py       // AST with Histogram Layers
+		└── ast_histogram.py       // AST with Histogram Layers (HPT)
 
 ```
 
@@ -60,6 +58,6 @@ https://github.com/Peeples-Lab/HLAST_DeepShip_ParameterEfficient
 
 This source code is licensed under the license found in the [`LICENSE`](LICENSE) file in the root directory of this source tree.
 
-This product is Copyright (c) 2025 A. Mohammadi, A. Dine and J. Peeples. All rights reserved.
+This product is Copyright (c) 2025 A. Mohammadi, D. Carreiro, A. Dine and J. Peeples. All rights reserved.
 
 
