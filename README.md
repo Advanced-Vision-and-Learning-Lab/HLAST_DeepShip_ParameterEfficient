@@ -21,6 +21,10 @@ The [`requirements.txt`](requirements.txt) file includes all the necessary packa
 
    ```pip install -r requirements.txt```
 
+Or, for a more convenient option, a pre-configured environment is available for download through the provided link. This environment comes with all the essential packages already installed.
+
+[`Download environment`](https://drive.google.com/file/d/1dUvjjK3ImNZJP6jZuAlMhulKfijVkM8K/view?usp=sharing)
+
 ## Demo
 
 To get started, please follow the instructions in the [Datasets](Datasets) folder to download the DeepShip dataset.
@@ -72,12 +76,9 @@ If you use this work, please cite:
 ### arXiv preprint
 
 ```bibtex
-@misc{mohammadi2025histogram,
-  title        = {Histogram-based Parameter-efficient Tuning for Passive Sonar Classification},
-  author       = {Mohammadi, Amirmohammad and Carreiro, Davelle and Van Dine, Alexandra and Peeples, Joshua},
-  year         = {2025},
-  eprint       = {2504.15214},
-  archivePrefix= {arXiv},
-  primaryClass = {cs.LG},
-  url          = {https://arxiv.org/abs/2504.15214}
+@article{amir2025histogram,
+  title={Histogram-based Parameter-efficient Tuning for Passive Sonar Classification},
+  author={Mohammadi, Amirmohammad and Carreiro, Davelle and Van Dine, Alexandra and Peeples, Joshua},
+  journal={arXiv preprint arXiv:2504.15214},
+  year={2025}
 }
