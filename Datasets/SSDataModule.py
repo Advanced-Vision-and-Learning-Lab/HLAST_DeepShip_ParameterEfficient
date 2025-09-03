@@ -147,6 +147,38 @@ class SSAudioDataModule(L.LightningDataModule):
             for idx, file_data in enumerate(self.test_data):
                 f.write(f'{idx}: {file_data["file_path"]}\n')
 
+    def _print_summary(self):
+        """Print per-split sample counts and unique recording-folder counts."""
+        def rec_id(fp):
+            parts = fp.split(os.sep)
+            # e.g.  .../class_name/recording/segment.wav  →  class_name/recording
+            return f"{parts[-3]}/{parts[-2]}"
+
+        splits = {
+            "train": self.train_data,
+            "val":   self.val_data,
+            "test":  self.test_data,
+        }
+
+        recording_counts = {k: len({rec_id(fd["file_path"]) for fd in v})
+                            for k, v in splits.items()}
+        total_recordings = sum(recording_counts.values())
+        total_samples    = sum(len(v) for v in splits.values())
+
+        print(f"\nNumber of training samples:   {len(self.train_data)}")
+        print(f"Number of validation samples: {len(self.val_data)}")
+        print(f"Number of test samples:       {len(self.test_data)}")
+
+        print(f"\nRecording folders – "
+              f"train: {recording_counts['train']}, "
+              f"val: {recording_counts['val']}, "
+              f"test: {recording_counts['test']}, "
+              f"total: {total_recordings}")
+
+        print(f"Total number of samples across all splits: {total_samples}\n")
+    # ───────────────────────────────────────────────────────────────
+
+
     def load_split_indices(self, filepath):
         print("\nLoading split indices from the saved file...\n")
         self.train_data = []
@@ -179,9 +211,7 @@ class SSAudioDataModule(L.LightningDataModule):
                         elif current_split == 'test':
                             self.test_data.append(file_data)
 
-        print(f"Number of training samples: {len(self.train_data)}")
-        print(f"Number of validation samples: {len(self.val_data)}")
-        print(f"Number of test samples: {len(self.test_data)}")
+        self._print_summary()
 
         self.check_data_leakage()
         self.prepared = True

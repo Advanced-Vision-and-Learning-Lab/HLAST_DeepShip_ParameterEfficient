@@ -1,3 +1,5 @@
+# Network_functions.py
+
 from Utils.Feature_Extraction_Layer import Feature_Extraction_Layer
 from src.models.ast_base import ASTBase
 from src.models.ast_linear_probe import ASTLinearProbe
@@ -14,16 +16,21 @@ def initialize_model(model_name, num_classes, numBins, RR, sample_rate=16000,seg
                      adapter_location='ffn', adapter_mode='parallel', 
                      histogram_location='ffn', histogram_mode='parallel',
                      lora_target='q', lora_rank=4, r_shared=False, b_mode='full',
-                     ssf_shared=False, ssf_mode='full'):
-
-    # Initialize feature layer
-    feature_layer = Feature_Extraction_Layer(input_feature=input_feature, sample_rate=sample_rate,segment_length=segment_length,
-                                             window_length=window_length, hop_length=hop_length, number_mels=number_mels)
+                     ssf_shared=False, ssf_mode='full', skip_feature=False, image_input_hw=(96, 96)):
     
-    ft_dims = feature_layer.output_dims
-    inpf, inpt = ft_dims[1], ft_dims[2]
-    print(f'feature shape f by t: {inpf} by {inpt}')
-
+    if not skip_feature:
+        feature_layer = Feature_Extraction_Layer(
+            input_feature=input_feature, sample_rate=sample_rate, segment_length=segment_length,
+            window_length=window_length, hop_length=hop_length, number_mels=number_mels
+        )
+        ft_dims = feature_layer.output_dims
+        inpf, inpt = ft_dims[1], ft_dims[2]
+        print(f'feature shape f by t: {inpf} by {inpt}')
+    else:
+        feature_layer = None
+        inpf, inpt = image_input_hw
+        print(f'skipping feature extraction; using input HxW = {inpf}x{inpt}')
+        
     # Initialize the appropriate model
     if t_mode == 'full_fine_tune':
         model_ft = ASTBase(label_dim=num_classes, input_fdim=inpf, input_tdim=inpt)

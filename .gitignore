@@ -5,7 +5,12 @@
 Datasets/DeepShip
 Datasets/ShipsEar
 Datasets/VTUAD
+Datasets/ESC-50-master
+Datasets/ESC50_16k
+Datasets/KLSG
+Datasets/FLS
 tb_logs/
+tb_logs_esc50/
 pretrained_models/
 esc50_data/
 esc50_data_resampled/

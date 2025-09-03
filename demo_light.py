@@ -1,4 +1,5 @@
-import pdb
+# demo.py
+
 import numpy as np
 import argparse
 import torch
@@ -16,6 +17,7 @@ from Datasets.SSDataModule import SSAudioDataModule
 
 from Datasets.ShipsEar_Data_Preprocessing import Generate_Segments
 from Datasets.ShipsEar_dataloader import ShipsEarDataModule
+from Datasets.fls_datamodule import FLSDataModule
 
 import os
 import zipfile
@@ -114,17 +116,43 @@ def main(Params):
         data_module = AudioDataModule(base_dir=base_dir, scenario_name=chosen_scenario,
                                       batch_size=batch_size, num_workers=num_workers)
         num_classes = 5
-        
+    
+
+    elif Params['data_selection'] == 4:
+        # FLS image dataset (Watertank or Turntable)
+        fls_choice = Params.get('fls_dataset', 'watertank')   # 'watertank' or 'turntable'
+        fls_root   = Params.get('fls_dir', './Datasets/FLS')  # folder containing the .hdf5 files
+
+        data_module = FLSDataModule(
+            dataset=fls_choice,
+            data_root=fls_root,
+            batch_size=t_batch_size,                 
+            num_workers=num_workers,
+            pin_memory=True
+        )
+        data_module.prepare_data()
+
+        # number of classes (includes background for watertank)
+        num_classes = 11 if fls_choice == 'watertank' else 12
+
+        # tell the model pipeline we're using images (no feature extractor)
+        Params['skip_feature']   = True
+        Params['image_input_hw'] = (96, 96)
+
+
+
     else:
-        raise ValueError('Invalid data selection: must be 0, 1, or 2')
+        raise ValueError('Invalid data selection: must be 0, 1, 2, or 4')
     
     DataName = "DeepShip" if Params['data_selection'] == 0 else \
-             "ShipsEar" if Params['data_selection'] == 1 else \
-             "VTUAD" if Params['data_selection'] == 2 else \
-             "Invalid selection"
+               "ShipsEar" if Params['data_selection'] == 1 else \
+               "VTUAD"    if Params['data_selection'] == 2 else \
+               (f"FLS_{Params.get('fls_dataset','watertank').capitalize()}" if Params['data_selection'] == 4 else \
+               "Invalid selection")
+             
     print('\nStarting Experiments for ' + DataName)
     
-    numRuns = 1
+    numRuns = 3
     progress_bar=False
     
     torch.set_float32_matmul_precision('medium')
@@ -193,8 +221,6 @@ def main(Params):
             Params=Params,
             model_name=model_name,
             num_classes=num_classes,
-            pretrained_loaded=True,
-            run_number=run_number
         )
     
         test_results = trainer.test(model=best_model, datamodule=data_module)
@@ -244,7 +270,11 @@ def parse_args():
     parser.add_argument('--adapters_shared', default=True, action=argparse.BooleanOptionalAction,
                         help='Flag to use adapter shared')
     parser.add_argument('--data_selection', type=int, default=1,
-                        help='Dataset selection: See Demo_Parameters for full list of datasets')
+                        help='Dataset selection: 0=DeepShip, 1=ShipsEar, 2=VTUAD, 4=FLS')
+    parser.add_argument('--fls_dir', type=str, default='./Datasets/FLS',
+                        help='Path to FLS folder containing the .hdf5 files')
+    parser.add_argument('--fls_dataset', type=str, default='watertank', choices=['watertank','turntable'],
+                        help='Choose which FLS classification dataset to use')
     parser.add_argument('-numBins', type=int, default=16,
                         help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
     parser.add_argument('-RR', type=int, default=128,

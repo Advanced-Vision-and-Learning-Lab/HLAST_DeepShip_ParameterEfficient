@@ -247,7 +247,7 @@ class ASTHistogram(nn.Module):
             for layer in self.histogram_layers_mhsa:
                 for param in layer.parameters():
                     param.requires_grad = True
-        
+
         if hasattr(self, 'histogram_layers_ffn') and self.histogram_layers_ffn is not None:
             for layer in self.histogram_layers_ffn:
                 for param in layer.parameters():

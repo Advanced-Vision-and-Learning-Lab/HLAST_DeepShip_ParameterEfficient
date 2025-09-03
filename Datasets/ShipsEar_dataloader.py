@@ -1,3 +1,5 @@
+# ShipsEar_dataloader.py
+
 import os
 import pandas as pd
 import numpy as np
@@ -31,7 +33,7 @@ class ShipsEarDataModule(L.LightningDataModule):
                  split_file='shipsear_data_split.txt'):
         super().__init__()
         
-        self.batch_size = batch_size or {'train': 64, 'val': 128, 'test': 128}
+        self.batch_size = batch_size or {'train': 64, 'val': 64, 'test': 64}
 
         self.parent_folder = parent_folder
         self.train_split = train_split
@@ -174,7 +176,9 @@ class ShipsEarDataModule(L.LightningDataModule):
             self.save_splits(folder_lists)
 
         segment_lists = {'train': [], 'test': [], 'val': []}
-
+        recording_counts = {split: len(folder_lists[split]) for split in ['train', 'val', 'test']}
+        total_recordings = sum(recording_counts.values())
+        
         # Loop over each partition and gather all segments (files) within each folder
         for split in ['train', 'test', 'val']:
             for folder_path, label in folder_lists[split]:
@@ -189,9 +193,18 @@ class ShipsEarDataModule(L.LightningDataModule):
         self.val_dataset = ShipsEarDataset(segment_lists['val'])
         self.test_dataset = ShipsEarDataset(segment_lists['test'])
 
+        total_samples = (len(self.train_dataset) +len(self.val_dataset) +len(self.test_dataset))
+                         
         print(f"\nNumber of training samples: {len(self.train_dataset)}")
         print(f"Number of validation samples: {len(self.val_dataset)}")
         print(f"Number of test samples: {len(self.test_dataset)}\n")
+        
+        print(f"\nRecording folders  – train: {recording_counts['train']}, "
+              f"val: {recording_counts['val']}, "
+              f"test: {recording_counts['test']}, "
+              f"total: {total_recordings}")
+
+        print(f"Total number of samples across all splits: {total_samples}\n")
         
         self.check_data_leakage()
 

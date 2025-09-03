@@ -73,6 +73,7 @@ class AudioDataModule(L.LightningDataModule):
         print(f"\nNumber of training samples: {len(self.train_data)}")
         print(f"Number of validation samples: {len(self.val_data)}")
         print(f"Number of test samples: {len(self.test_data)}\n")
+        print(f"Number of total samples: {len(self.test_data)+len(self.train_data)+len(self.val_data)}\n")
         
     def train_dataloader(self):
         return DataLoader(

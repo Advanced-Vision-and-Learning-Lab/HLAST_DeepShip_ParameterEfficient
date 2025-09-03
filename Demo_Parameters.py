@@ -1,3 +1,4 @@
+# Demo_Parameters.py
 def Parameters(args):
 
     histograms_shared = args.histograms_shared
@@ -42,7 +43,9 @@ def Parameters(args):
     sample_rate = args.sample_rate
 
     Model_name = args.model
-    
+
+    fls_dir = getattr(args, 'fls_dir', './Datasets/FLS')
+    fls_dataset = getattr(args, 'fls_dataset', 'watertank')  # 'watertank' or 'turntable'
     new_dir_p = './Datasets/DeepShip/'
     new_dir = '{}Segments_{}s_{}hz/'.format(new_dir_p,segment_length,sample_rate)
     
@@ -51,7 +54,8 @@ def Parameters(args):
                           'sample_rate':sample_rate,'segment_length':segment_length,'new_dir':new_dir,
                           'num_workers': num_workers,'lr': lr,'batch_size' : batch_size, 
                           'num_epochs': num_epochs,'normalize_count': normalize_count, 'data_selection':data_selection,
-                          'normalize_bins': normalize_bins,'parallel': parallel,
+                          'normalize_bins': normalize_bins,'parallel': parallel, 
+                          'fls_dir': fls_dir, 'fls_dataset': fls_dataset,
                           'numBins': numBins,'RR': RR,'Model_name': Model_name, 
                           'train_mode': train_mode, 'use_pretrained': use_pretrained,
                           'pin_memory': pin_memory,'Parallelize': Parallelize_model,

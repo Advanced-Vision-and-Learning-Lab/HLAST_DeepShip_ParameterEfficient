@@ -1,4 +1,7 @@
+# LitModel.py
+
 import torch
+from torch import nn
 from Utils.Network_functions import initialize_model
 import torch.nn.functional as F
 import lightning as L
@@ -10,7 +13,8 @@ class LitModel(L.LightningModule):
         super().__init__()
 
         self.learning_rate = Params['lr']
-
+        self._skip_feature = bool(
+            Params.get('skip_feature', (Params.get('data_selection', -1) in (3, 4))))
         self.model_ft, self.feature_extraction_layer = initialize_model(model_name, num_classes,
                                                                         numBins,RR,Params['sample_rate'],
                                                                         segment_length=Params['segment_length'],
@@ -31,7 +35,9 @@ class LitModel(L.LightningModule):
                                                                         r_shared=Params['lora_shared'],
                                                                         b_mode=Params['bias_mode'],
                                                                         ssf_shared=Params['ssf_shared'],
-                                                                        ssf_mode=Params['ssf_mode']
+                                                                        ssf_mode=Params['ssf_mode'],
+                                                                        skip_feature=self._skip_feature,
+                                                                        image_input_hw=Params.get('image_input_hw', (96, 96)),
                                                                         )
 
         self.train_acc = torchmetrics.classification.Accuracy(
@@ -43,19 +49,22 @@ class LitModel(L.LightningModule):
         
         self.save_hyperparameters()
 
+        self.encoder = self.feature_extraction_layer if self.feature_extraction_layer is not None else nn.Identity()
+
+        if isinstance(self.encoder, torch.nn.Identity):
+            print("[LitModel] Feature extractor: SKIPPED (image input path)")
+        else:
+            print("[LitModel] Feature extractor: ENABLED (audio feature path)")
+
     def forward(self, x):
-        y_feat = self.feature_extraction_layer(x)
-        y_pred = self.model_ft(y_feat)
-        return y_pred
+        return self.model_ft(self.encoder(x))
 
     def training_step(self, train_batch, batch_idx):
         x, y = train_batch
-        y_feat = self.feature_extraction_layer(x)
-        y_pred = self.model_ft(y_feat)
+        y_pred = self.model_ft(self.encoder(x))
         loss = F.cross_entropy(y_pred, y)
 
         self.train_acc(y_pred, y)
-
         self.log('train_acc', self.train_acc, on_step=False, on_epoch=True)
         self.log('loss', loss, on_step=True, on_epoch=True)
 
@@ -63,8 +72,7 @@ class LitModel(L.LightningModule):
 
     def validation_step(self, val_batch, batch_idx):
         x, y = val_batch
-        y_feat = self.feature_extraction_layer(x)
-        y_pred = self.model_ft(y_feat)
+        y_pred = self.model_ft(self.encoder(x))
         val_loss = F.cross_entropy(y_pred, y)
 
         self.val_acc(y_pred, y)
@@ -75,14 +83,10 @@ class LitModel(L.LightningModule):
  
     def test_step(self, test_batch, batch_idx):
         x, y = test_batch
-
-        y_feat = self.feature_extraction_layer(x)
-        y_pred = self.model_ft(y_feat)
-        
+        y_pred = self.model_ft(self.encoder(x))        
         test_loss = F.cross_entropy(y_pred, y)
         
         self.test_acc(y_pred, y)
-    
         self.log('test_loss', test_loss, on_step=False, on_epoch=True)
         self.log('test_acc', self.test_acc, on_step=False, on_epoch=True)
 
