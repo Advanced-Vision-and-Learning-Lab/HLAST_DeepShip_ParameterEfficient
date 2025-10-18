@@ -78,7 +78,7 @@ def _deterministic_stratified_val_split(x, y, val_ratio=0.10):
     val_idx = []
     for k in classes:
         idx_k = np.nonzero(y == k)[0]
-        # keep current order (no shuffle)
+        # keep current order
         n_k = len(idx_k)
         n_val = max(1, math.ceil(val_ratio * n_k))
         val_idx.extend(idx_k[:n_val])
@@ -92,22 +92,6 @@ def _deterministic_stratified_val_split(x, y, val_ratio=0.10):
 
 
 class FLSDataModule(L.LightningDataModule):
-    """
-    Usage example:
-        dm = FLSDataModule(
-            dataset="watertank",            # or "turntable"
-            data_root="./FLS",
-            batch_size=64,
-            num_workers=4,
-            pin_memory=True
-        )
-        dm.prepare_data()   # no-op
-        dm.setup("fit")
-        train_loader = dm.train_dataloader()
-        val_loader   = dm.val_dataloader()
-        dm.setup("test")
-        test_loader  = dm.test_dataloader()
-    """
     def __init__(
         self,
         dataset: str,                 # "watertank" or "turntable"
@@ -156,7 +140,7 @@ class FLSDataModule(L.LightningDataModule):
             x_va, y_va = arrays["x_val"], arrays["y_val"]  # provided by release
             x_te, y_te = arrays["x_test"], arrays["y_test"]
             if x_va is None or y_va is None:
-                # Fallback: create deterministic 10% val if val isn't present (shouldn't happen for Watertank)
+                # Fallback: create deterministic 10% val if val isn't present
                 x_tr, y_tr, x_va, y_va = _deterministic_stratified_val_split(x_tr, y_tr, val_ratio=0.10)
         else:  # turntable
             x_tr_full, y_tr_full = arrays["x_train"], arrays["y_train"]

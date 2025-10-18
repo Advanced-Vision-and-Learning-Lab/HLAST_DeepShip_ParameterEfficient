@@ -1,4 +1,4 @@
-# Histogram-based Parameter-efficient Tuning for Passive Sonar Classification
+# Histogram-based Parameter-efficient Tuning for Passive and Active Sonar Classification
 <p align="center">
   <img src="Figures/Workflow.png" alt="Workflow Diagram">
 </p>
