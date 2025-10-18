@@ -48,6 +48,7 @@ https://github.com/Peeples-Lab/HLAST_DeepShip_ParameterEfficient
         └── ShipsEar_dataloader.py         // Data Module for the ShipsEar dataset.
         ├── Create_Combined_VTUAD.py 	   // Merge the three distinct scenarios into one for the VTUAD dataset.
         └── VTUAD_DataModule.py            // Data Module for the VTUAD dataset.
+        └── fls_datamodule.py              // FLS (forward-looking sonar) vision DataModule.
     └── Utils                     
         ├── LitModel.py                    // Lightning Module for the the model.
         ├── Network_functions.py           // Contains functions to initialize the model.
