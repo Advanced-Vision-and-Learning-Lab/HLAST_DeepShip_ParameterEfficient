@@ -8,12 +8,13 @@ Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine and Joshua Peeples
 
 If this code is used, please cite it. (2025, March): Initial Release (Version v1.0). 
 
-[arXiv](https://arxiv.org/abs/2504.15214)
-
 ### Zenodo archive
 
 [`Zenodo`](https://doi.org/10.5281/zenodo.15263760). https://zenodo.org/records/15263760  
+
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15263760.svg)](https://doi.org/10.5281/zenodo.15263760)
+[![arXiv](https://img.shields.io/badge/arXiv-2504.15214-b31b1b.svg?style=plastic)](https://arxiv.org/abs/2504.15214)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=plastic)](https://opensource.org/licenses/MIT)
 
 ## Installation Prerequisites
 
@@ -71,6 +72,9 @@ This source code is licensed under the license found in the [`LICENSE`](LICENSE)
 This product is Copyright (c) 2025 A. Mohammadi, D. Carreiro, A. Dine and J. Peeples. All rights reserved.
 
 ## Citation
+
+Please use this DOI number reference when citing the software:
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15263760.svg)](https://doi.org/10.5281/zenodo.15263760)
 
 If you use this work, please cite:
 
