@@ -4,9 +4,9 @@
 </p>
 
 
-Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine and Joshua Peeples
+### Acknowledgement and Disclaimer
 
-If this code is used, please cite it. (2025, March): Initial Release (Version v1.0). 
+This material is based upon work supported by the Under Secretary of War for Research and Engineering under Air Force Contract No. FA8702-15-D-0001 or FA8702-25-D-B002. Any opinions, findings, conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect he views of the Under Secretary of War for Research and Engineering. The software/firmware is provided to you on an As-Is basis.
 
 ### Zenodo archive
 
@@ -69,20 +69,20 @@ https://github.com/Peeples-Lab/HLAST_DeepShip_ParameterEfficient
 
 This source code is licensed under the license found in the [`LICENSE`](LICENSE) file in the root directory of this source tree.
 
-This product is Copyright (c) 2025 A. Mohammadi, D. Carreiro, A. Dine and J. Peeples. All rights reserved.
+This product is Copyright (c) 2025 A. Mohammadi and J. Peeples. All rights reserved.
 
 ## Citation
 
 Please use this DOI number reference when citing the software:
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15263760.svg)](https://doi.org/10.5281/zenodo.15263760)
 
-If you use this work, please cite:
+If this code is used, please cite it. (2025, March): Initial Release (Version v1.0). 
 
 ### arXiv preprint
 
 ```bibtex
 @article{amir2025histogram,
-  title={Histogram-based Parameter-efficient Tuning for Passive Sonar Classification},
+  title={Histogram-based Parameter-efficient Tuning for Passive and Active Sonar Classification},
   author={Mohammadi, Amirmohammad and Carreiro, Davelle and Van Dine, Alexandra and Peeples, Joshua},
   journal={arXiv preprint arXiv:2504.15214},
   year={2025}
